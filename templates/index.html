@@ -1,29 +1,24 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>シンプルwiki</title>
-    <link rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📚%3C/text%3E%3C/svg%3E"
-        type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📚%3C/text%3E%3C/svg%3E" type="image/svg+xml">
     <style>
-        body,
-        textarea {
+        body, textarea {
             font-size: 1.2em;
             margin: 0;
             padding: 0;
         }
-
         textarea {
             width: 100%;
             height: 100vh;
             border: none;
             padding: 10px;
             box-sizing: border-box;
+            resize: none;
         }
-
         .keyword-buttons {
             position: fixed;
             bottom: 0;
@@ -31,27 +26,53 @@
             right: 0;
             background: #f0f0f0;
             padding: 10px;
+            overflow-x: auto;
+            white-space: nowrap;
         }
-
         .keyword-buttons button {
             margin-right: 5px;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
         }
-
-        .modal {
-            display: none;
+        .modal-button {
             position: fixed;
             bottom: 20px;
             right: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
             background: white;
-            padding: 10px;
+            padding: 20px;
             border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1001;
+        }
+        .modal button {
+            display: block;
+            margin-bottom: 10px;
+            padding: 8px 16px;
+            cursor: pointer;
         }
     </style>
 </head>
-
 <body>
     <textarea id="wiki-text" autofocus></textarea>
     <div class="keyword-buttons" id="keyword-buttons"></div>
+    <button class="modal-button" onclick="toggleModal()">⚙️</button>
     <div class="modal" id="modal">
         <button onclick="copyTokenURL()">トークンURLをコピー</button>
         <button onclick="downloadArchive()">データアーカイブをダウンロード</button>
@@ -61,6 +82,21 @@
         const textarea = document.getElementById("wiki-text");
         const token = "{{ token }}";
         let timeout;
+
+        // ページロード時にURLパラメータからタイトルを取得し、本文を読み込む
+        window.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const title = urlParams.get("title");
+            if (title) {
+                fetch(`/load?token=${token}&title=${encodeURIComponent(title)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "success") {
+                            textarea.value = `${title}\n${data.content}`;
+                        }
+                    });
+            }
+        });
 
         textarea.addEventListener("input", () => {
             clearTimeout(timeout);
@@ -99,20 +135,27 @@
             fetch(`/load?token=${token}&title=${encodeURIComponent(title)}`)
                 .then(res => res.json())
                 .then(data => {
-                    textarea.value = `${data.title}\n${data.content}`;
+                    if (data.status === "success") {
+                        textarea.value = `${title}\n${data.content}`;
+                    }
                 });
         }
 
         function copyTokenURL() {
             navigator.clipboard.writeText(`${window.location.origin}?token=${token}`);
+            alert("トークンURLをコピーしました！");
         }
 
         function downloadArchive() {
             window.open(`/archive?token=${token}`, "_blank");
         }
 
+        function toggleModal() {
+            const modal = document.getElementById("modal");
+            modal.style.display = modal.style.display === "block" ? "none" : "block";
+        }
+
         setInterval(detectKeywords, 1000);
     </script>
 </body>
-
 </html>

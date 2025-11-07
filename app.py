@@ -98,6 +98,24 @@ def search_keywords():
     conn.close()
     return jsonify([row[0] for row in rows])
 
+@app.route("/load", methods=["GET"])
+def load():
+    ensure_table_exists()
+    token = request.args.get("token")
+    title = request.args.get("title")
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"SELECT content FROM {TABLE_NAME} WHERE token = %s AND title = %s", (token, title))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if row:
+        return jsonify({"status": "success", "content": row[0]})
+    else:
+        return jsonify({"status": "error", "message": "Not found"}), 404
+
 
 @app.route("/archive", methods=["GET"])
 def archive():
