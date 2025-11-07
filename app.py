@@ -10,30 +10,37 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
 # テーブル名（ランダムな6桁の16進数）
-TABLE_NAME = "wiki_pages_83f9a2"
+TABLE_NAME = f"wiki_pages_{secrets.token_hex(3)}"
+
 
 def get_db():
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     return conn
 
-def init_db():
+
+def ensure_table_exists():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(f"""
+    cur.execute(
+        f"""
         CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
             id SERIAL PRIMARY KEY,
             token TEXT NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(token, title)
         )
-    """)
+    """
+    )
     conn.commit()
     cur.close()
     conn.close()
 
+
 @app.route("/")
 def index():
+    ensure_table_exists()  # テーブルの存在を確認・作成
     token = request.args.get("token") or request.cookies.get("token")
     if not token:
         token = secrets.token_urlsafe(16)
@@ -42,8 +49,10 @@ def index():
     resp.set_cookie("token", token)
     return resp
 
+
 @app.route("/save", methods=["POST"])
 def save():
+    ensure_table_exists()  # テーブルの存在を確認・作成
     data = request.json
     token = data["token"]
     title = data["title"]
@@ -54,35 +63,45 @@ def save():
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(f"""
+    cur.execute(
+        f"""
         INSERT INTO {TABLE_NAME} (token, title, content, updated_at)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (token, title)
         DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at
-    """, (token, title, content, datetime.now()))
+    """,
+        (token, title, content, datetime.now()),
+    )
     conn.commit()
     cur.close()
     conn.close()
     return jsonify({"status": "success"})
 
+
 @app.route("/search_keywords", methods=["GET"])
 def search_keywords():
+    ensure_table_exists()  # テーブルの存在を確認・作成
     keyword = request.args.get("keyword")
     token = request.args.get("token")
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(f"""
+    cur.execute(
+        f"""
         SELECT title FROM {TABLE_NAME}
         WHERE content LIKE %s AND token = %s
-    """, (f"%[{keyword}]%", token))
+    """,
+        (f"%[{keyword}]%", token),
+    )
     rows = cur.fetchall()
     cur.close()
     conn.close()
     return jsonify([row[0] for row in rows])
 
+
 @app.route("/archive", methods=["GET"])
 def archive():
+    ensure_table_exists()  # テーブルの存在を確認・作成
     token = request.args.get("token")
     conn = get_db()
     cur = conn.cursor()
@@ -100,9 +119,8 @@ def archive():
         io.BytesIO(output.read().encode("utf-8")),
         mimetype="text/plain",
         as_attachment=True,
-        download_name="wiki_archive.txt"
+        download_name="wiki_archive.txt",
     )
 
-if __name__ == "__main__":
-    init_db()
-    app.run(debug=True)
+
+# if __name__ == "__main__": はVercelでは使用しない
