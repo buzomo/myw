@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプルwiki</title>
+    <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📚%3C/text%3E%3C/svg%3E"
+        type="image/svg+xml">
+    <style>
+        body,
+        textarea {
+            font-size: 1.2em;
+            margin: 0;
+            padding: 0;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100vh;
+            border: none;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .keyword-buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #f0f0f0;
+            padding: 10px;
+        }
+
+        .keyword-buttons button {
+            margin-right: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+
+<body>
+    <textarea id="wiki-text" autofocus></textarea>
+    <div class="keyword-buttons" id="keyword-buttons"></div>
+    <div class="modal" id="modal">
+        <button onclick="copyTokenURL()">トークンURLをコピー</button>
+        <button onclick="downloadArchive()">データアーカイブをダウンロード</button>
+    </div>
+
+    <script>
+        const textarea = document.getElementById("wiki-text");
+        const token = "{{ token }}";
+        let timeout;
+
+        textarea.addEventListener("input", () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(saveContent, 2000);
+        });
+
+        function saveContent() {
+            const lines = textarea.value.split("\n");
+            const title = lines[0] || "";
+            const content = lines.slice(1).join("\n");
+
+            if (!content.trim()) return;
+
+            fetch("/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token, title, content })
+            });
+        }
+
+        function detectKeywords() {
+            const content = textarea.value;
+            const keywords = content.match(/\[([^\]]+)\]/g) || [];
+            keywords.forEach(kw => {
+                const keyword = kw.slice(1, -1);
+                fetch(`/search_keywords?keyword=${encodeURIComponent(keyword)}&token=${token}`)
+                    .then(res => res.json())
+                    .then(titles => {
+                        const buttons = document.getElementById("keyword-buttons");
+                        buttons.innerHTML = titles.map(t => `<button onclick="loadPage('${t}')">${t}</button>`).join("");
+                    });
+            });
+        }
+
+        function loadPage(title) {
+            fetch(`/load?token=${token}&title=${encodeURIComponent(title)}`)
+                .then(res => res.json())
+                .then(data => {
+                    textarea.value = `${data.title}\n${data.content}`;
+                });
+        }
+
+        function copyTokenURL() {
+            navigator.clipboard.writeText(`${window.location.origin}?token=${token}`);
+        }
+
+        function downloadArchive() {
+            window.open(`/archive?token=${token}`, "_blank");
+        }
+
+        setInterval(detectKeywords, 1000);
+    </script>
+</body>
+
+</html>
