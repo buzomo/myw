@@ -10,7 +10,7 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
 # テーブル名（ランダムな6桁の16進数）
-TABLE_NAME = f"wiki_pages_{secrets.token_hex(3)}"
+TABLE_NAME = "wiki_pages_f7095a"
 
 
 def get_db():
