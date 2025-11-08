@@ -12,11 +12,9 @@ app.secret_key = os.urandom(24)
 # テーブル名（ランダムな6桁の16進数）
 TABLE_NAME = "wiki_pages_f7095a"
 
-
 def get_db():
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     return conn
-
 
 def ensure_table_exists():
     conn = get_db()
@@ -37,18 +35,15 @@ def ensure_table_exists():
     cur.close()
     conn.close()
 
-
 @app.route("/")
 def index():
     ensure_table_exists()  # テーブルの存在を確認・作成
     token = request.args.get("token") or request.cookies.get("token")
     if not token:
         token = secrets.token_urlsafe(16)
-
     resp = make_response(render_template("index.html", token=token))
     resp.set_cookie("token", token)
     return resp
-
 
 @app.route("/save", methods=["POST"])
 def save():
@@ -57,10 +52,8 @@ def save():
     token = data["token"]
     title = data["title"]
     content = data["content"]
-
     if not content.strip():
         return jsonify({"status": "error", "message": "Content is empty"}), 400
-
     conn = get_db()
     cur = conn.cursor()
     cur.execute(
@@ -77,13 +70,11 @@ def save():
     conn.close()
     return jsonify({"status": "success"})
 
-
 @app.route("/search_keywords", methods=["GET"])
 def search_keywords():
     ensure_table_exists()  # テーブルの存在を確認・作成
     keyword = request.args.get("keyword")
     token = request.args.get("token")
-
     conn = get_db()
     cur = conn.cursor()
     cur.execute(
@@ -96,7 +87,8 @@ def search_keywords():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return jsonify([row[0] for row in rows])
+    titles = [row[0] for row in rows]
+    return jsonify({"status": "success", "titles": titles})
 
 @app.route("/load", methods=["GET"])
 def load():
@@ -116,8 +108,6 @@ def load():
         print(f"DEBUG: No record found for token={token}, title={title}")  # ログ出力
         return jsonify({"status": "error", "message": "Not found"}), 404
 
-
-
 @app.route("/archive", methods=["GET"])
 def archive():
     ensure_table_exists()  # テーブルの存在を確認・作成
@@ -128,12 +118,10 @@ def archive():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-
     output = io.StringIO()
     for row in rows:
         output.write(f"# {row[0]}\n{row[1]}\n\n")
     output.seek(0)
-
     return send_file(
         io.BytesIO(output.read().encode("utf-8")),
         mimetype="text/plain",
@@ -141,19 +129,16 @@ def archive():
         download_name="wiki_archive.txt",
     )
 
-
 @app.route("/get_titles", methods=["GET"])
 def get_titles():
     ensure_table_exists()
     token = request.args.get("token")
-
     conn = get_db()
     cur = conn.cursor()
     cur.execute(f"SELECT title FROM {TABLE_NAME} WHERE token = %s ORDER BY updated_at DESC", (token,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
-
     titles = [row[0] for row in rows]
     return jsonify(titles)
 
@@ -161,7 +146,6 @@ def get_titles():
 def load_last():
     ensure_table_exists()
     token = request.args.get("token")
-
     conn = get_db()
     cur = conn.cursor()
     cur.execute(f"""
@@ -174,11 +158,7 @@ def load_last():
     row = cur.fetchone()
     cur.close()
     conn.close()
-
     if row:
         return jsonify({"status": "success", "title": row[0], "content": row[1]})
     else:
         return jsonify({"status": "error", "message": "Not found"}), 404
-
-
-# if __name__ == "__main__": はVercelでは使用しない
