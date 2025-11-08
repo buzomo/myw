@@ -10,6 +10,8 @@
             margin: 0;
             padding: 20px;
             background-color: #f9f9f9;
+            position: relative;
+            min-height: 100vh;
         }
         #wikiTextarea {
             width: 100%;
@@ -27,10 +29,31 @@
                 display: block;
             }
         }
+        #titleList {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #ddd;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        .title-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .title-item:hover {
+            background-color: #f5f5f5;
+        }
     </style>
 </head>
 <body>
     <textarea id="wikiTextarea" placeholder="1行目にタイトルを入力してください..."></textarea>
+    <div id="titleList"></div>
 
     <script>
         // デバウンス用のタイマー変数
@@ -51,6 +74,25 @@
             return lines[0] || '';
         }
 
+        // タイトル一覧を表示
+        function showTitleList(titles) {
+            const titleList = document.getElementById('titleList');
+            titleList.innerHTML = '';
+            titles.forEach(title => {
+                const div = document.createElement('div');
+                div.className = 'title-item';
+                div.textContent = title;
+                div.addEventListener('click', () => {
+                    const textarea = document.getElementById('wikiTextarea');
+                    textarea.value = title + '\n';
+                    loadContentByTitle(title);
+                    titleList.style.display = 'none';
+                });
+                titleList.appendChild(div);
+            });
+            titleList.style.display = 'block';
+        }
+
         // タイトルに合致するコンテンツを読み込む
         function loadContentByTitle(title) {
             const token = getToken();
@@ -61,9 +103,7 @@
                 .then(data => {
                     if (data.status === 'success') {
                         const textarea = document.getElementById('wikiTextarea');
-                        const lines = textarea.value.split('\n');
-                        // 1行目はタイトルのまま、2行目以降をコンテンツで上書き
-                        textarea.value = lines[0] + '\n' + data.content;
+                        textarea.value = title + '\n' + data.content;
                     }
                 })
                 .catch(error => {
@@ -71,7 +111,22 @@
                 });
         }
 
-        // テキストエリアの1行目が変更されたら、デバウンスして読み込み
+        // タイトル一覧を取得
+        function fetchTitleList() {
+            const token = getToken();
+            if (!token) return;
+
+            fetch(`/get_titles?token=${encodeURIComponent(token)}`)
+                .then(response => response.json())
+                .then(titles => {
+                    showTitleList(titles);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+
+        // テキストエリアの入力イベント
         document.getElementById('wikiTextarea').addEventListener('input', function(e) {
             clearTimeout(debounceTimer);
 
@@ -79,6 +134,9 @@
                 const title = getTitleFromTextarea();
                 if (title.trim().length > 0) {
                     loadContentByTitle(title);
+                    document.getElementById('titleList').style.display = 'none';
+                } else {
+                    fetchTitleList();
                 }
             }, 500);
         });
@@ -93,6 +151,8 @@
                 .then(data => {
                     if (data.status === 'success') {
                         document.getElementById('wikiTextarea').value = data.title + '\n' + data.content;
+                    } else {
+                        fetchTitleList(); // 空欄時はタイトル一覧を表示
                     }
                 })
                 .catch(error => {
