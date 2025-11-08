@@ -26,16 +26,16 @@
         .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
         @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 80px; opacity: 1; } }
         @keyframes fadeout { from { bottom: 80px; opacity: 1; } to { bottom: 0; opacity: 0; } }
-        .context-menu { display: none; position: absolute; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 100; }
-        .context-menu-item { padding: 8px 16px; cursor: pointer; }
-        .context-menu-item:hover { background: #f0f0f0; }
+        .new-page-button { margin-bottom: 16px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="search-container">
         <input type="text" id="searchBox" placeholder="タイトル・本文を検索...">
     </div>
-    <div id="pageList"></div>
+    <div id="pageList">
+        <button class="new-page-button" id="newPageButton">新規ページ</button>
+    </div>
     <div id="editor">
         <a href="#" class="back-button" id="backButton">← 一覧に戻る</a>
         <input type="text" id="editorTitle" placeholder="タイトル">
@@ -43,24 +43,23 @@
         <div id="relatedPages"></div>
     </div>
     <div id="toast" class="toast"></div>
-    <div id="contextMenu" class="context-menu">
-        <div class="context-menu-item" onclick="deletePage()">このページを削除</div>
-    </div>
     <button id="addButton">+</button>
     <script>
         const token = "{{ token }}";
         let lastDeletedPage = null;
+        let debounceTimer = null;
+        let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || [];
 
         // ページ一覧を表示
         function renderPageList(pages, query = '') {
             const pageList = document.getElementById('pageList');
-            pageList.innerHTML = pages.map(page => {
+            pageList.innerHTML = '<button class="new-page-button" id="newPageButton">新規ページ</button>' + pages.map(page => {
                 const title = highlightKeywords(page.title, query);
-                const content = highlightKeywords(page.content, query);
+                const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                 return `
-                    <div class="page-card" oncontextmenu="showContextMenu(event, '${page.title}')" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
+                    <div class="page-card" onclick="openEditorFromList('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
                         <div class="page-title">${title}</div>
-                        <div class="page-content">${content.replace(/\[([^\]]+)\]/g, '<span class="keyword">[$1]</span>')}</div>
+                        <div class="page-content">${content}</div>
                     </div>
                 `;
             }).join('');
@@ -70,12 +69,12 @@
         function renderRelatedPages(pages, query = '') {
             const relatedPages = document.getElementById('relatedPages');
             if (pages.length > 0) {
-                relatedPages.innerHTML = '<h3>関連ページ</h3>' + pages.map(page => {
+                relatedPages.innerHTML = pages.map(page => {
                     const title = highlightKeywords(page.title, query);
                     const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                     return `
-                        <div class="related-page-card" oncontextmenu="showContextMenu(event, '${page.title}')" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
-                            <div class="page-title">${title}</div>
+                        <div class="related-page-card" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
+                            <div class="page-title"><a style="color: #0366d6; cursor: pointer;">${title}</a></div>
                             <div class="page-content">${content}</div>
                         </div>
                     `;
@@ -97,12 +96,19 @@
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
+        // エディタを開く（ページ一覧から）
+        function openEditorFromList(title, content) {
+            openEditor(title, content);
+            history.pushState(null, null, `#${encodeURIComponent(title)}`);
+        }
+
         // エディタを開く
         function openEditor(title, content) {
             document.getElementById('editorTitle').value = title;
             document.getElementById('editorContent').value = content;
             document.getElementById('pageList').style.display = 'none';
             document.getElementById('editor').style.display = 'block';
+            document.getElementById('editorTitle').focus();
             if (title) {
                 fetchRelatedPages(title, document.getElementById('searchBox').value);
             }
@@ -119,6 +125,7 @@
         function closeEditor() {
             document.getElementById('editor').style.display = 'none';
             document.getElementById('pageList').style.display = 'block';
+            history.pushState(null, null, '#');
         }
 
         // ページを保存
@@ -130,8 +137,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, title, content })
             }).then(() => {
-                closeEditor();
-                fetchPageList(document.getElementById('searchBox').value);
+                showToast(`${title}を保存しました`);
+                updateCacheAndFetchList();
             });
         }
 
@@ -139,73 +146,104 @@
         function fetchPageList(query = '') {
             fetch(`/api/page_list?token=${token}&query=${query}`)
                 .then(res => res.json())
-                .then(pages => renderPageList(pages, query));
+                .then(pages => {
+                    cachedPages = pages;
+                    localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
+                    renderPageList(pages, query);
+                    if (pages.length > 0 && !window.location.hash) {
+                        openEditorFromList(pages[0].title, pages[0].content);
+                    }
+                });
+        }
+
+        // キャッシュを更新してページ一覧を再取得
+        function updateCacheAndFetchList() {
+            const query = document.getElementById('searchBox').value;
+            fetchPageList(query);
         }
 
         // ページを削除
-        function deletePage() {
-            const title = document.getElementById('contextMenu').dataset.title;
+        function deletePage(title) {
             fetch('/api/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, title })
             }).then(() => {
-                showToast(`${title}を削除しました`, () => {
-                    fetchPageList(document.getElementById('searchBox').value);
-                });
+                showToast(`${title}を削除しました`);
+                updateCacheAndFetchList();
                 lastDeletedPage = { token, title };
             });
-            hideContextMenu();
-        }
-
-        // 削除を取り消し
-        function undoDelete() {
-            if (lastDeletedPage) {
-                fetch('/api/undelete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(lastDeletedPage)
-                }).then(() => {
-                    fetchPageList(document.getElementById('searchBox').value);
-                    lastDeletedPage = null;
-                });
-            }
         }
 
         // トーストを表示
-        function showToast(message, onUndo) {
+        function showToast(message) {
             const toast = document.getElementById('toast');
-            toast.innerHTML = `${message} <a href="#" onclick="undoDelete()">取り消す</a>`;
+            toast.innerHTML = message;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        // コンテキストメニューを表示
-        function showContextMenu(event, title) {
-            event.preventDefault();
-            const menu = document.getElementById('contextMenu');
-            menu.dataset.title = title;
-            menu.style.display = 'block';
-            menu.style.left = `${event.pageX}px`;
-            menu.style.top = `${event.pageY}px`;
-        }
-
-        // コンテキストメニューを非表示
-        function hideContextMenu() {
-            document.getElementById('contextMenu').style.display = 'none';
-        }
-
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
+            // ローカルストレージからキャッシュを読み込み
+            if (cachedPages.length > 0) {
+                renderPageList(cachedPages);
+            }
+
+            // サーバーから最新のページ一覧を取得
             fetchPageList();
+
             document.getElementById('searchBox').addEventListener('input', (e) => fetchPageList(e.target.value));
             document.getElementById('addButton').addEventListener('click', () => openEditor('', ''));
+            document.getElementById('newPageButton').addEventListener('click', () => openEditor('', ''));
             document.getElementById('backButton').addEventListener('click', (e) => { e.preventDefault(); closeEditor(); });
+
+            // 自動保存（デバウンス）
+            document.getElementById('editorTitle').addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(savePage, 500);
+            });
+            document.getElementById('editorContent').addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(savePage, 500);
+            });
+
+            // キーボードショートカット
             document.addEventListener('keydown', (e) => {
                 if (e.ctrlKey && e.key === 's') { e.preventDefault(); savePage(); }
-                if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoDelete(); }
+                if (e.ctrlKey && e.key === 'n') { e.preventDefault(); openEditor('', ''); }
+                if (e.key === 'Escape') { closeEditor(); }
             });
-            document.addEventListener('click', hideContextMenu);
+
+            // URLハッシュからページを開く
+            if (window.location.hash) {
+                const title = decodeURIComponent(window.location.hash.substring(1));
+                const cachedPage = cachedPages.find(page => page.title === title);
+                if (cachedPage) {
+                    openEditorFromList(cachedPage.title, cachedPage.content);
+                } else {
+                    fetch(`/api/page_content?token=${token}&title=${encodeURIComponent(title)}`)
+                        .then(res => res.json())
+                        .then(page => openEditorFromList(title, page.content));
+                }
+            }
+
+            // ブラウザの戻る/進むボタンに対応
+            window.addEventListener('popstate', () => {
+                if (window.location.hash) {
+                    const title = decodeURIComponent(window.location.hash.substring(1));
+                    const cachedPage = cachedPages.find(page => page.title === title);
+                    if (cachedPage) {
+                        openEditorFromList(cachedPage.title, cachedPage.content);
+                    } else {
+                        fetch(`/api/page_content?token=${token}&title=${encodeURIComponent(title)}`)
+                            .then(res => res.json())
+                            .then(page => openEditorFromList(title, page.content));
+                    }
+                } else {
+                    closeEditor();
+                }
+            });
         });
     </script>
 </body>
