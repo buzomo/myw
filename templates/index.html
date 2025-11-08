@@ -5,139 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>シンプルWiki</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", Arial, sans-serif;
-        }
-        body {
-            background-color: #f8f9fa;
-            color: #333;
-            line-height: 1.6;
-            padding: 20px;
-        }
-        #searchBox {
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto 20px;
-            padding: 12px 16px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            outline: none;
-        }
-        #pageList {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .page-card {
-            background: white;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-        .page-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        .page-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: #000;
-        }
-        .page-content {
-            color: #555;
-            font-size: 14px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
-        #editor {
-            display: none;
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        #editorTitle {
-            width: 100%;
-            font-size: 20px;
-            font-weight: bold;
-            border: none;
-            outline: none;
-            margin-bottom: 12px;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
-        #editorContent {
-            width: 100%;
-            min-height: 300px;
-            font-size: 16px;
-            border: none;
-            outline: none;
-            resize: none;
-            line-height: 1.6;
-        }
-        #relatedPages {
-            margin-top: 20px;
-            border-top: 1px solid #eee;
-            padding-top: 16px;
-        }
-        .related-title {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 8px;
-        }
-        .related-page {
-            display: block;
-            padding: 6px 0;
-            color: #0366d6;
-            text-decoration: none;
-            font-size: 14px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .related-page:hover {
-            text-decoration: underline;
-        }
-        #addButton {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 56px;
-            height: 56px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            outline: none;
-        }
-        .back-button {
-            color: #0366d6;
-            text-decoration: none;
-            font-size: 14px;
-            margin-bottom: 16px;
-            display: inline-block;
-        }
-        .keyword {
-            color: #0366d6;
-            text-decoration: none;
-            cursor: pointer;
-        }
-        .keyword:hover {
-            text-decoration: underline;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #f8f9fa; padding: 20px; }
+        #searchBox { width: 100%; max-width: 600px; margin: 0 auto 20px; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; }
+        #pageList { max-width: 600px; margin: 0 auto; }
+        .page-card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
+        .page-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+        .page-content { color: #555; font-size: 14px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        #editor { display: none; max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        #editorTitle { width: 100%; font-size: 20px; border: none; outline: none; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid #eee; }
+        #editorContent { width: 100%; min-height: 300px; font-size: 16px; border: none; outline: none; resize: none; }
+        #addButton { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; background: #007bff; color: white; border: none; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .back-button { color: #0366d6; text-decoration: none; margin-bottom: 16px; display: inline-block; }
+        .keyword { color: #0366d6; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -147,48 +27,19 @@
         <a href="#" class="back-button" id="backButton">← 一覧に戻る</a>
         <input type="text" id="editorTitle" placeholder="タイトル">
         <textarea id="editorContent" placeholder="本文を入力..."></textarea>
-        <div id="relatedPages">
-            <div class="related-title">関連ページ</div>
-        </div>
     </div>
     <button id="addButton">+</button>
     <script>
-        // トークンをCookieから取得
-        function getToken() {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; token=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-            return '';
-        }
-        // 全角半角・大文字小文字・カタカナひらがなを吸収
-        function normalizeQuery(query) {
-            function kanaConvert(s) {
-                return s.replace(/[ァ-ヴ]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60));
-            }
-            function widthConvert(s) {
-                return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, m => String.fromCharCode(m.charCodeAt(0) - 0xFEE0));
-            }
-            function caseConvert(s) {
-                return s.toLowerCase();
-            }
-            return caseConvert(widthConvert(kanaConvert((query || '').trim())));
-        }
+        const token = "{{ token }}";
         // ページ一覧を表示
         function renderPageList(pages) {
             const pageList = document.getElementById('pageList');
-            pageList.innerHTML = '';
-            pages.forEach(page => {
-                const card = document.createElement('div');
-                card.className = 'page-card';
-                card.innerHTML = `
+            pageList.innerHTML = pages.map(page =>
+                `<div class="page-card" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
                     <div class="page-title">${page.title}</div>
                     <div class="page-content">${page.content.replace(/\[([^\]]+)\]/g, '<span class="keyword">[$1]</span>')}</div>
-                `;
-                card.addEventListener('click', () => {
-                    openEditor(page.title, page.content);
-                });
-                pageList.appendChild(card);
-            });
+                </div>`
+            ).join('');
         }
         // エディタを開く
         function openEditor(title, content) {
@@ -196,96 +47,38 @@
             document.getElementById('editorContent').value = content;
             document.getElementById('pageList').style.display = 'none';
             document.getElementById('editor').style.display = 'block';
-            // 関連ページを表示
-            fetchRelatedPages(title);
         }
         // エディタを閉じる
         function closeEditor() {
             document.getElementById('editor').style.display = 'none';
             document.getElementById('pageList').style.display = 'block';
         }
-        // 関連ページを取得
-        function fetchRelatedPages(title) {
-            const token = getToken();
-            if (!token) return;
-            fetch(`/related_pages?token=${encodeURIComponent(token)}&title=${encodeURIComponent(title)}`)
-                .then(response => response.json())
-                .then(data => {
-                    const relatedPages = document.getElementById('relatedPages');
-                    const list = document.createElement('div');
-                    data.forEach(page => {
-                        const link = document.createElement('a');
-                        link.className = 'related-page';
-                        link.textContent = page.title;
-                        link.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            openEditor(page.title, page.content);
-                        });
-                        list.appendChild(link);
-                    });
-                    relatedPages.appendChild(list);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-        }
         // ページを保存
         function savePage() {
-            const token = getToken();
             const title = document.getElementById('editorTitle').value;
             const content = document.getElementById('editorContent').value;
-            if (!token || !title) return;
-            fetch('/save', {
+            fetch('/api/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, title, content })
-            })
-            .then(response => response.json())
-            .then(() => {
+            }).then(() => {
                 closeEditor();
                 fetchPageList();
-            })
-            .catch(error => {
-                console.error('Error:', error);
             });
         }
         // ページ一覧を取得
         function fetchPageList(query = '') {
-            const token = getToken();
-            if (!token) return;
-            const params = new URLSearchParams({ token, query: normalizeQuery(query) });
-            fetch(`/page_list?${params.toString()}`)
-                .then(response => response.json())
-                .then(data => {
-                    renderPageList(data);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
+            fetch(`/api/page_list?token=${token}&query=${query}`)
+                .then(res => res.json())
+                .then(renderPageList);
         }
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             fetchPageList();
-            // 検索ボックスのイベント
-            document.getElementById('searchBox').addEventListener('input', (e) => {
-                fetchPageList(e.target.value);
-            });
-            // プラスボタンのイベント
-            document.getElementById('addButton').addEventListener('click', () => {
-                openEditor('', '');
-            });
-            // 戻るボタンのイベント
-            document.getElementById('backButton').addEventListener('click', (e) => {
-                e.preventDefault();
-                closeEditor();
-            });
-            // エディタの保存イベント（例: Ctrl+S）
-            document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.key === 's') {
-                    e.preventDefault();
-                    savePage();
-                }
-            });
+            document.getElementById('searchBox').addEventListener('input', (e) => fetchPageList(e.target.value));
+            document.getElementById('addButton').addEventListener('click', () => openEditor('', ''));
+            document.getElementById('backButton').addEventListener('click', (e) => { e.preventDefault(); closeEditor(); });
+            document.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 's') { e.preventDefault(); savePage(); } });
         });
     </script>
 </body>

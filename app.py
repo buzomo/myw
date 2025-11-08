@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, make_response
 import os
 import secrets
 import psycopg2
@@ -9,8 +9,7 @@ app = Flask(__name__)
 TABLE_NAME = "wiki_pages_f7095a"
 
 def get_db():
-    conn = psycopg2.connect(os.environ["DATABASE_URL"])
-    return conn
+    return psycopg2.connect(os.environ["DATABASE_URL"])
 
 def ensure_table_exists():
     conn = get_db()
@@ -29,11 +28,21 @@ def ensure_table_exists():
     cur.close()
     conn.close()
 
-@app.route("/page_list")
+@app.route("/")
+def index():
+    ensure_table_exists()
+    token = request.args.get("token") or request.cookies.get("token")
+    if not token:
+        token = secrets.token_urlsafe(16)
+    resp = make_response(render_template("index.html", token=token))
+    resp.set_cookie("token", token)
+    return resp
+
+@app.route("/api/page_list")
 def page_list():
     ensure_table_exists()
     token = request.args.get("token")
-    query = request.args.get("query", "")
+    query = request.args.get("query", "").lower()
     conn = get_db()
     cur = conn.cursor()
     if query:
@@ -51,29 +60,26 @@ def page_list():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    pages = [{"title": row[0], "content": row[1]} for row in rows]
-    return jsonify(pages)
+    return jsonify([{"title": row[0], "content": row[1]} for row in rows])
 
-@app.route("/related_pages")
+@app.route("/api/related_pages")
 def related_pages():
     ensure_table_exists()
     token = request.args.get("token")
     title = request.args.get("title")
     conn = get_db()
     cur = conn.cursor()
-    # キーワードリンクから関連ページを検索
     cur.execute(f"""
         SELECT title, content FROM {TABLE_NAME}
-        WHERE token = %s AND content LIKE %s AND title != %s
+        WHERE token = %s AND content LIKE '%%[[]%%' AND title != %s
         ORDER BY updated_at DESC
-    """, (token, "%[[]%]", title))
+    """, (token, title))
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    pages = [{"title": row[0], "content": row[1]} for row in rows]
-    return jsonify(pages)
+    return jsonify([{"title": row[0], "content": row[1]} for row in rows])
 
-@app.route("/save", methods=["POST"])
+@app.route("/api/save", methods=["POST"])
 def save():
     ensure_table_exists()
     data = request.json
@@ -92,6 +98,3 @@ def save():
     cur.close()
     conn.close()
     return jsonify({"status": "success"})
-
-if __name__ == "__main__":
-    app.run()
