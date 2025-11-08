@@ -6,7 +6,6 @@
     <link rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📖%3C/text%3E%3C/svg%3E"
       type="image/svg+xml">
-
     <title>シンプルWiki</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
@@ -24,10 +23,6 @@
         #relatedPages { max-width: 600px; margin: 20px auto; }
         .related-page-card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
         .highlight { background-color: #d4edda; font-weight: bold; }
-        .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 4px; padding: 12px; position: fixed; z-index: 1; right: 24px; bottom: 80px; }
-        .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 80px; opacity: 1; } }
-        @keyframes fadeout { from { bottom: 80px; opacity: 1; } to { bottom: 0; opacity: 0; } }
         #searchModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 100; }
         #searchModalContent { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px; }
         #searchInput { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 16px; }
@@ -42,7 +37,6 @@
         <textarea id="editorContent" placeholder="本文を入力..."></textarea>
         <div id="relatedPages"></div>
     </div>
-    <div id="toast" class="toast"></div>
     <div id="searchModal">
         <div id="searchModalContent">
             <input type="text" id="searchInput" placeholder="検索..." autofocus>
@@ -55,6 +49,7 @@
         let debounceTimer = null;
         let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || [];
         let selectedIndex = 0;
+        let searchSelectedIndex = 0;
 
         // ページ一覧を表示
         function renderPageList(pages, query = '') {
@@ -71,11 +66,12 @@
             }).join('');
         }
 
-        // 関連ページを表示
-        function renderRelatedPages(pages, query = '') {
+        // 関連ページを表示（現在表示中のページを除外）
+        function renderRelatedPages(pages, currentTitle, query = '') {
             const relatedPages = document.getElementById('relatedPages');
-            if (pages.length > 0) {
-                relatedPages.innerHTML = pages.map(page => {
+            const filteredPages = pages.filter(page => page.title !== currentTitle);
+            if (filteredPages.length > 0) {
+                relatedPages.innerHTML = filteredPages.map(page => {
                     const title = highlightKeywords(page.title, query);
                     const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                     return `
@@ -124,7 +120,7 @@
         function fetchRelatedPages(title, query) {
             fetch(`/api/related_pages?token=${token}&title=${encodeURIComponent(title)}`)
                 .then(res => res.json())
-                .then(pages => renderRelatedPages(pages, query));
+                .then(pages => renderRelatedPages(pages, title, query));
         }
 
         // エディタを閉じる
@@ -143,7 +139,6 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, title, content })
             }).then(() => {
-                showToast(`${title}を保存しました`);
                 updateCacheAndFetchList();
             });
         }
@@ -174,18 +169,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, title })
             }).then(() => {
-                showToast(`${title}を削除しました`);
                 updateCacheAndFetchList();
                 lastDeletedPage = { token, title };
             });
-        }
-
-        // トーストを表示
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            toast.innerHTML = message;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
         // 検索モーダルを開く
@@ -207,11 +193,11 @@
                 page.title.includes(query) || page.content.includes(query)
             );
             const searchResults = document.getElementById('searchResults');
-            searchResults.innerHTML = results.map(page => {
+            searchResults.innerHTML = results.map((page, index) => {
                 const title = highlightKeywords(page.title, query);
                 const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                 return `
-                    <div class="page-card" onclick="openEditorFromList('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`); closeSearchModal();">
+                    <div class="page-card ${index === searchSelectedIndex ? 'selected' : ''}" onclick="openEditorFromList('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`); closeSearchModal();">
                         <div class="page-title">${title}</div>
                         <div class="page-content">${content}</div>
                     </div>
@@ -239,53 +225,97 @@
 
             // キーボードショートカット
             document.addEventListener('keydown', (e) => {
-                if (document.activeElement === document.getElementById('editorTitle') || document.activeElement === document.getElementById('editorContent')) {
+                const isEditing = document.activeElement === document.getElementById('editorTitle') || document.activeElement === document.getElementById('editorContent');
+                const isSearching = document.getElementById('searchModal').style.display === 'block';
+
+                if (isEditing) {
                     return;
                 }
 
+                // 検索モーダル内の操作
+                if (isSearching) {
+                    if (e.key === 'Escape') {
+                        closeSearchModal();
+                    } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        const cards = document.querySelectorAll('#searchResults .page-card');
+                        if (cards.length > 0) {
+                            cards[searchSelectedIndex]?.classList.remove('selected');
+                            searchSelectedIndex = (searchSelectedIndex + 1) % cards.length;
+                            cards[searchSelectedIndex].classList.add('selected');
+                            cards[searchSelectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const cards = document.querySelectorAll('#searchResults .page-card');
+                        if (cards.length > 0) {
+                            cards[searchSelectedIndex]?.classList.remove('selected');
+                            searchSelectedIndex = (searchSelectedIndex - 1 + cards.length) % cards.length;
+                            cards[searchSelectedIndex].classList.add('selected');
+                            cards[searchSelectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const cards = document.querySelectorAll('#searchResults .page-card');
+                        if (cards.length > 0) {
+                            const title = cards[searchSelectedIndex].querySelector('.page-title').textContent;
+                            const content = cachedPages.find(page => page.title === title).content;
+                            openEditorFromList(title, content);
+                            closeSearchModal();
+                        }
+                    }
+                    return;
+                }
+
+                // トップページの操作
                 if (e.key === '/') {
                     e.preventDefault();
                     openSearchModal();
-                } else if (e.key === 'Escape') {
-                    closeSearchModal();
-                } else if (e.key === 'j') {
+                } else if (e.key === 'n') {
                     e.preventDefault();
-                    const cards = document.querySelectorAll('.page-card');
+                    openEditor('', '');
+                } else if (e.key === 'ArrowDown' || e.key === 'j') {
+                    e.preventDefault();
+                    const cards = document.querySelectorAll('#pageList .page-card');
                     if (cards.length > 0) {
-                        cards[selectedIndex].classList.remove('selected');
+                        cards[selectedIndex]?.classList.remove('selected');
                         selectedIndex = (selectedIndex + 1) % cards.length;
                         cards[selectedIndex].classList.add('selected');
                         cards[selectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }
-                } else if (e.key === 'k') {
+                } else if (e.key === 'ArrowUp' || e.key === 'k') {
                     e.preventDefault();
-                    const cards = document.querySelectorAll('.page-card');
+                    const cards = document.querySelectorAll('#pageList .page-card');
                     if (cards.length > 0) {
-                        cards[selectedIndex].classList.remove('selected');
+                        cards[selectedIndex]?.classList.remove('selected');
                         selectedIndex = (selectedIndex - 1 + cards.length) % cards.length;
                         cards[selectedIndex].classList.add('selected');
                         cards[selectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }
-                } else if (e.key === 'o') {
+                } else if (e.key === 'Enter' || e.key === 'o') {
                     e.preventDefault();
-                    const cards = document.querySelectorAll('.page-card');
+                    const cards = document.querySelectorAll('#pageList .page-card');
                     if (cards.length > 0) {
                         const title = cards[selectedIndex].querySelector('.page-title').textContent;
                         const content = cachedPages.find(page => page.title === title).content;
                         openEditorFromList(title, content);
                     }
-                } else if (e.ctrlKey && e.key === 'n') {
+                } else if (e.key === 'x') {
                     e.preventDefault();
-                    openEditor('', '');
-                } else if (e.ctrlKey && e.key === 's') {
-                    e.preventDefault();
-                    savePage();
+                    const cards = document.querySelectorAll('#pageList .page-card');
+                    if (cards.length > 0) {
+                        const title = cards[selectedIndex].querySelector('.page-title').textContent;
+                        if (confirm(`${title}を削除しますか？`)) {
+                            deletePage(title);
+                        }
+                    }
                 }
             });
 
             // 検索入力時の処理
             document.getElementById('searchInput').addEventListener('input', (e) => {
                 searchPages(e.target.value);
+                searchSelectedIndex = 0;
             });
 
             // URLハッシュからページを開く
