@@ -29,6 +29,28 @@
                 display: block;
             }
         }
+        #keywordList {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #ddd;
+            padding: 10px;
+            display: none;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .keyword-item {
+            background-color: #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 16px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        .keyword-item:hover {
+            background-color: #d0d0d0;
+        }
         #titleList {
             position: fixed;
             bottom: 0;
@@ -53,12 +75,11 @@
 </head>
 <body>
     <textarea id="wikiTextarea" placeholder="1行目にタイトルを入力してください..."></textarea>
+    <div id="keywordList"></div>
     <div id="titleList"></div>
-
     <script>
         // デバウンス用のタイマー変数
         let debounceTimer;
-
         // トークンをCookieから取得
         function getToken() {
             const value = `; ${document.cookie}`;
@@ -66,14 +87,35 @@
             if (parts.length === 2) return parts.pop().split(';').shift();
             return '';
         }
-
         // 1行目のタイトルを取得
         function getTitleFromTextarea() {
             const textarea = document.getElementById('wikiTextarea');
             const lines = textarea.value.split('\n');
             return lines[0] || '';
         }
-
+        // キーワード一覧を表示
+        function showKeywordList(keywords) {
+            const keywordList = document.getElementById('keywordList');
+            keywordList.innerHTML = '';
+            keywords.forEach(keyword => {
+                const span = document.createElement('span');
+                span.className = 'keyword-item';
+                span.textContent = keyword;
+                span.addEventListener('click', () => {
+                    // キーワードクリック時の処理（例: 検索など）
+                    alert(`キーワード「${keyword}」がクリックされました`);
+                });
+                keywordList.appendChild(span);
+            });
+            keywordList.style.display = 'flex';
+        }
+        // キーワードを抽出
+        function extractKeywords(text) {
+            const regex = /\[([^\]]+)\]/g;
+            const matches = text.match(regex);
+            if (!matches) return [];
+            return matches.map(match => match.replace(/[\[\]]/g, ''));
+        }
         // タイトル一覧を表示
         function showTitleList(titles) {
             const titleList = document.getElementById('titleList');
@@ -92,30 +134,36 @@
             });
             titleList.style.display = 'block';
         }
-
         // タイトルに合致するコンテンツを読み込む
         function loadContentByTitle(title) {
             const token = getToken();
             if (!token || !title) return;
-
             fetch(`/load?token=${encodeURIComponent(token)}&title=${encodeURIComponent(title)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
                         const textarea = document.getElementById('wikiTextarea');
                         textarea.value = title + '\n' + data.content;
+                        // 2行目以降のキーワードを抽出して表示
+                        const lines = textarea.value.split('\n');
+                        if (lines.length > 1) {
+                            const keywords = extractKeywords(lines.slice(1).join('\n'));
+                            if (keywords.length > 0) {
+                                showKeywordList(keywords);
+                            } else {
+                                document.getElementById('keywordList').style.display = 'none';
+                            }
+                        }
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
                 });
         }
-
         // タイトル一覧を取得
         function fetchTitleList() {
             const token = getToken();
             if (!token) return;
-
             fetch(`/get_titles?token=${encodeURIComponent(token)}`)
                 .then(response => response.json())
                 .then(titles => {
@@ -125,11 +173,9 @@
                     console.error('Error:', error);
                 });
         }
-
         // テキストエリアの入力イベント
         document.getElementById('wikiTextarea').addEventListener('input', function(e) {
             clearTimeout(debounceTimer);
-
             debounceTimer = setTimeout(() => {
                 const title = getTitleFromTextarea();
                 if (title.trim().length > 0) {
@@ -140,17 +186,23 @@
                 }
             }, 500);
         });
-
         // ページロード時に前回の内容を復元
         window.addEventListener('load', () => {
             const token = getToken();
             if (!token) return;
-
             fetch(`/load_last?token=${encodeURIComponent(token)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
                         document.getElementById('wikiTextarea').value = data.title + '\n' + data.content;
+                        // 2行目以降のキーワードを抽出して表示
+                        const lines = data.content.split('\n');
+                        if (lines.length > 0) {
+                            const keywords = extractKeywords(lines.join('\n'));
+                            if (keywords.length > 0) {
+                                showKeywordList(keywords);
+                            }
+                        }
                     } else {
                         fetchTitleList(); // 空欄時はタイトル一覧を表示
                     }
