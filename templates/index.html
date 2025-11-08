@@ -141,7 +141,7 @@
         function searchTitlesByKeyword(keyword) {
             const token = getToken();
             if (!token) return;
-            fetch(`/search_titles?token=${encodeURIComponent(token)}&keyword=${encodeURIComponent(keyword)}`)
+            fetch(`/search_keywords?token=${encodeURIComponent(token)}&keyword=${encodeURIComponent(keyword)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success' && data.titles.length > 0) {
