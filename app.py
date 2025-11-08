@@ -141,4 +141,43 @@ def archive():
     )
 
 
+@app.route("/get_titles", methods=["GET"])
+def get_titles():
+    ensure_table_exists()
+    token = request.args.get("token")
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"SELECT title FROM {TABLE_NAME} WHERE token = %s ORDER BY updated_at DESC", (token,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    titles = [row[0] for row in rows]
+    return jsonify(titles)
+
+@app.route("/load_last", methods=["GET"])
+def load_last():
+    ensure_table_exists()
+    token = request.args.get("token")
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT title, content
+        FROM {TABLE_NAME}
+        WHERE token = %s
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """, (token,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if row:
+        return jsonify({"status": "success", "title": row[0], "content": row[1]})
+    else:
+        return jsonify({"status": "error", "message": "Not found"}), 404
+
+
 # if __name__ == "__main__": はVercelでは使用しない
