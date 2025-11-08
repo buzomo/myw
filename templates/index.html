@@ -3,205 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シンプルwiki</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📚%3C/text%3E%3C/svg%3E" type="image/svg+xml">
+    <title>Wikiアプリ</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⏲%3C/text%3E%3C/svg%3E" type="image/svg+xml">
     <style>
-        body, textarea {
-            font-size: 1.2em;
-            margin: 0;
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #searchInput {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .title-list {
+            list-style: none;
             padding: 0;
         }
-        textarea {
-            border: none;
-            padding: 10px;
-            box-sizing: border-box;
-            resize: none;
-        }
-        .keyword-buttons {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #f0f0f0;
-            padding: 10px;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
-        .keyword-buttons button {
-            margin-right: 5px;
-            margin-bottom: 5px;
-            padding: 5px 10px;
+        .title-list li {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
             cursor: pointer;
         }
-        .modal-button {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            font-size: 24px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
-            background: white;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            z-index: 1001;
-        }
-        .modal button {
-            display: block;
-            margin-bottom: 10px;
-            padding: 8px 16px;
-            cursor: pointer;
-        }
-        @media (min-width: 768px) {
-            body {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                background-color: #f9f9f9;
-            }
-            textarea {
-                width: 80%;
-                height: 80vh;
-            }
+        .title-list li:hover {
+            background-color: #f5f5f5;
         }
     </style>
 </head>
 <body>
-    <textarea id="wiki-text" autofocus></textarea>
-    <div class="keyword-buttons" id="keyword-buttons"></div>
-    <button class="modal-button" onclick="toggleModal()">⚙️</button>
-    <div class="modal" id="modal">
-        <button onclick="copyTokenURL()">トークンURLをコピー</button>
-        <button onclick="downloadArchive()">データアーカイブをダウンロード</button>
+    <h1>Wikiアプリ</h1>
+    <input type="text" id="searchInput" placeholder="タイトルを検索...">
+    <div id="results">
+        <ul class="title-list" id="titleList"></ul>
     </div>
 
     <script>
-        const textarea = document.getElementById("wiki-text");
-        const token = "{{ token }}";
-        let timeout;
-        let lastTitle = "";
+        // デバウンス用のタイマー変数
+        let debounceTimer;
 
-        // ページロード時の処理
-        window.addEventListener("DOMContentLoaded", () => {
-            fetch(`/load_last?token=${token}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === "success") {
-                        textarea.value = `${data.title}\n${data.content}`;
-                        lastTitle = data.title;
-                    } else {
-                        // ロード時に空欄の場合、タイトル一覧を表示
-                        fetch(`/get_titles?token=${token}`)
-                            .then(res => res.json())
-                            .then(titles => {
-                                const buttons = document.getElementById("keyword-buttons");
-                                buttons.innerHTML = titles.map(t => `<button onclick="loadPage('${t}')">${t}</button>`).join("");
-                            });
-                    }
-                });
-        });
+        // トークンをCookieから取得
+        function getToken() {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; token=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
 
-        textarea.addEventListener("keydown", (e) => {
-            const lines = textarea.value.split("\n");
-            const currentTitle = lines[0] || "";
-
-            // 1行目が空欄の場合は改行を無効化
-            if (lines.length === 1 && currentTitle.trim() === "" && e.key === "Enter") {
-                e.preventDefault();
+        // タイトルを検索し、結果を表示
+        function searchTitles(keyword) {
+            const token = getToken();
+            if (!token) {
+                console.error("Token not found");
                 return;
             }
-        });
 
-        textarea.addEventListener("input", () => {
-            const lines = textarea.value.split("\n");
-            const currentTitle = lines[0] || "";
-
-            // 1行目の内容が変わったらデータを呼び出す
-            if (currentTitle !== lastTitle) {
-                lastTitle = currentTitle;
-                if (currentTitle.trim() !== "") {
-                    fetch(`/load?token=${token}&title=${encodeURIComponent(currentTitle)}`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.status === "success") {
-                                textarea.value = `${currentTitle}\n${data.content}`;
-                            }
-                        });
-                }
-            }
-
-            clearTimeout(timeout);
-            timeout = setTimeout(saveContent, 2000);
-        });
-
-        function saveContent() {
-            const lines = textarea.value.split("\n");
-            const title = lines[0] || "";
-            const content = lines.slice(1).join("\n");
-
-            if (!content.trim() || !title.trim()) return;
-
-            fetch("/save", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token, title, content })
-            });
-        }
-
-        function detectKeywords() {
-            const content = textarea.value;
-            const keywords = content.match(/\[([^\]]+)\]/g) || [];
-            keywords.forEach(kw => {
-                const keyword = kw.slice(1, -1);
-                fetch(`/search_keywords?keyword=${encodeURIComponent(keyword)}&token=${token}`)
-                    .then(res => res.json())
-                    .then(titles => {
-                        const buttons = document.getElementById("keyword-buttons");
-                        buttons.innerHTML = titles.map(t => `<button onclick="loadPage('${t}')">${t}</button>`).join("");
+            fetch(`/search_keywords?keyword=${encodeURIComponent(keyword)}&token=${encodeURIComponent(token)}`)
+                .then(response => response.json())
+                .then(titles => {
+                    const titleList = document.getElementById('titleList');
+                    titleList.innerHTML = '';
+                    titles.forEach(title => {
+                        const li = document.createElement('li');
+                        li.textContent = title;
+                        li.addEventListener('click', () => loadTitle(title));
+                        titleList.appendChild(li);
                     });
-            });
-        }
-
-        function loadPage(title) {
-            fetch(`/load?token=${token}&title=${encodeURIComponent(title)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === "success") {
-                        textarea.value = `${title}\n${data.content}`;
-                        lastTitle = title;
-                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
                 });
         }
 
-        function copyTokenURL() {
-            navigator.clipboard.writeText(`${window.location.origin}?token=${token}`);
-            alert("トークンURLをコピーしました！");
+        // タイトルをクリックしたときに内容を読み込む
+        function loadTitle(title) {
+            const token = getToken();
+            fetch(`/load?token=${encodeURIComponent(token)}&title=${encodeURIComponent(title)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(`タイトル: ${title}\n内容: ${data.content}`);
+                    } else {
+                        alert('コンテンツが見つかりません');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
         }
 
-        function downloadArchive() {
-            window.open(`/archive?token=${token}`, "_blank");
-        }
+        // デバウンス機能付きの入力イベント
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const keyword = e.target.value.trim();
 
-        function toggleModal() {
-            const modal = document.getElementById("modal");
-            modal.style.display = modal.style.display === "block" ? "none" : "block";
-        }
+            // 既存のタイマーをクリア
+            clearTimeout(debounceTimer);
 
-        setInterval(detectKeywords, 1000);
+            // 新しいタイマーを設定（500ms待機）
+            debounceTimer = setTimeout(() => {
+                if (keyword.length > 0) {
+                    searchTitles(keyword);
+                } else {
+                    document.getElementById('titleList').innerHTML = '';
+                }
+            }, 500);
+        });
     </script>
 </body>
 </html>
