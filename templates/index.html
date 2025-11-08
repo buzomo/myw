@@ -20,7 +20,15 @@
         .back-button { color: #0366d6; text-decoration: none; margin-bottom: 16px; display: inline-block; }
         .keyword { color: #0366d6; cursor: pointer; }
         #relatedPages { max-width: 600px; margin: 20px auto; }
-        .related-page-card { background: #f0f8ff; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
+        .related-page-card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
+        .highlight { background-color: #d4edda; font-weight: bold; }
+        .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 4px; padding: 12px; position: fixed; z-index: 1; right: 24px; bottom: 80px; }
+        .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 80px; opacity: 1; } }
+        @keyframes fadeout { from { bottom: 80px; opacity: 1; } to { bottom: 0; opacity: 0; } }
+        .context-menu { display: none; position: absolute; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 100; }
+        .context-menu-item { padding: 8px 16px; cursor: pointer; }
+        .context-menu-item:hover { background: #f0f0f0; }
     </style>
 </head>
 <body>
@@ -34,33 +42,59 @@
         <textarea id="editorContent" placeholder="本文を入力..."></textarea>
         <div id="relatedPages"></div>
     </div>
+    <div id="toast" class="toast"></div>
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item" onclick="deletePage()">このページを削除</div>
+    </div>
     <button id="addButton">+</button>
     <script>
         const token = "{{ token }}";
+        let lastDeletedPage = null;
 
         // ページ一覧を表示
-        function renderPageList(pages) {
+        function renderPageList(pages, query = '') {
             const pageList = document.getElementById('pageList');
-            pageList.innerHTML = pages.map(page =>
-                `<div class="page-card" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
-                    <div class="page-title">${page.title}</div>
-                    <div class="page-content">${page.content.replace(/\[([^\]]+)\]/g, '<span class="keyword">[$1]</span>')}</div>
-                </div>`
-            ).join('');
+            pageList.innerHTML = pages.map(page => {
+                const title = highlightKeywords(page.title, query);
+                const content = highlightKeywords(page.content, query);
+                return `
+                    <div class="page-card" oncontextmenu="showContextMenu(event, '${page.title}')" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
+                        <div class="page-title">${title}</div>
+                        <div class="page-content">${content.replace(/\[([^\]]+)\]/g, '<span class="keyword">[$1]</span>')}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // 関連ページを表示
-        function renderRelatedPages(pages) {
+        function renderRelatedPages(pages, query = '') {
             const relatedPages = document.getElementById('relatedPages');
             if (pages.length > 0) {
-                relatedPages.innerHTML = '<h3>関連ページ</h3>' + pages.map(page =>
-                    `<div class="related-page-card" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
-                        <div class="page-title">${page.title}</div>
-                    </div>`
-                ).join('');
+                relatedPages.innerHTML = '<h3>関連ページ</h3>' + pages.map(page => {
+                    const title = highlightKeywords(page.title, query);
+                    const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
+                    return `
+                        <div class="related-page-card" oncontextmenu="showContextMenu(event, '${page.title}')" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
+                            <div class="page-title">${title}</div>
+                            <div class="page-content">${content}</div>
+                        </div>
+                    `;
+                }).join('');
             } else {
                 relatedPages.innerHTML = '';
             }
+        }
+
+        // キーワードをハイライト
+        function highlightKeywords(text, query) {
+            if (!query) return text;
+            const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+            return text.replace(regex, match => `<span class="highlight">${match}</span>`);
+        }
+
+        // 特殊文字をエスケープ
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
         // エディタを開く
@@ -70,15 +104,15 @@
             document.getElementById('pageList').style.display = 'none';
             document.getElementById('editor').style.display = 'block';
             if (title) {
-                fetchRelatedPages(title);
+                fetchRelatedPages(title, document.getElementById('searchBox').value);
             }
         }
 
         // 関連ページを取得
-        function fetchRelatedPages(title) {
+        function fetchRelatedPages(title, query) {
             fetch(`/api/related_pages?token=${token}&title=${encodeURIComponent(title)}`)
                 .then(res => res.json())
-                .then(renderRelatedPages);
+                .then(pages => renderRelatedPages(pages, query));
         }
 
         // エディタを閉じる
@@ -97,7 +131,7 @@
                 body: JSON.stringify({ token, title, content })
             }).then(() => {
                 closeEditor();
-                fetchPageList();
+                fetchPageList(document.getElementById('searchBox').value);
             });
         }
 
@@ -105,7 +139,60 @@
         function fetchPageList(query = '') {
             fetch(`/api/page_list?token=${token}&query=${query}`)
                 .then(res => res.json())
-                .then(renderPageList);
+                .then(pages => renderPageList(pages, query));
+        }
+
+        // ページを削除
+        function deletePage() {
+            const title = document.getElementById('contextMenu').dataset.title;
+            fetch('/api/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, title })
+            }).then(() => {
+                showToast(`${title}を削除しました`, () => {
+                    fetchPageList(document.getElementById('searchBox').value);
+                });
+                lastDeletedPage = { token, title };
+            });
+            hideContextMenu();
+        }
+
+        // 削除を取り消し
+        function undoDelete() {
+            if (lastDeletedPage) {
+                fetch('/api/undelete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(lastDeletedPage)
+                }).then(() => {
+                    fetchPageList(document.getElementById('searchBox').value);
+                    lastDeletedPage = null;
+                });
+            }
+        }
+
+        // トーストを表示
+        function showToast(message, onUndo) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = `${message} <a href="#" onclick="undoDelete()">取り消す</a>`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // コンテキストメニューを表示
+        function showContextMenu(event, title) {
+            event.preventDefault();
+            const menu = document.getElementById('contextMenu');
+            menu.dataset.title = title;
+            menu.style.display = 'block';
+            menu.style.left = `${event.pageX}px`;
+            menu.style.top = `${event.pageY}px`;
+        }
+
+        // コンテキストメニューを非表示
+        function hideContextMenu() {
+            document.getElementById('contextMenu').style.display = 'none';
         }
 
         // 初期化
@@ -114,7 +201,11 @@
             document.getElementById('searchBox').addEventListener('input', (e) => fetchPageList(e.target.value));
             document.getElementById('addButton').addEventListener('click', () => openEditor('', ''));
             document.getElementById('backButton').addEventListener('click', (e) => { e.preventDefault(); closeEditor(); });
-            document.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 's') { e.preventDefault(); savePage(); } });
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 's') { e.preventDefault(); savePage(); }
+                if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoDelete(); }
+            });
+            document.addEventListener('click', hideContextMenu);
         });
     </script>
 </body>

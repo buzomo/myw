@@ -21,6 +21,7 @@ def ensure_table_exists():
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP,
             UNIQUE(token, title)
         )
     """)
@@ -48,13 +49,13 @@ def page_list():
     if query:
         cur.execute(f"""
             SELECT title, content FROM {TABLE_NAME}
-            WHERE token = %s AND (LOWER(title) LIKE %s OR LOWER(content) LIKE %s)
+            WHERE token = %s AND deleted_at IS NULL AND (LOWER(title) LIKE %s OR LOWER(content) LIKE %s)
             ORDER BY updated_at DESC
         """, (token, f"%{query}%", f"%{query}%"))
     else:
         cur.execute(f"""
             SELECT title, content FROM {TABLE_NAME}
-            WHERE token = %s
+            WHERE token = %s AND deleted_at IS NULL
             ORDER BY updated_at DESC
         """, (token,))
     rows = cur.fetchall()
@@ -70,8 +71,7 @@ def related_pages():
     conn = get_db()
     cur = conn.cursor()
 
-    # 現在開いているページの本文中の[キーワード]を抽出
-    cur.execute(f"SELECT content FROM {TABLE_NAME} WHERE token = %s AND title = %s", (token, title))
+    cur.execute(f"SELECT content FROM {TABLE_NAME} WHERE token = %s AND title = %s AND deleted_at IS NULL", (token, title))
     row = cur.fetchone()
     if not row:
         cur.close()
@@ -85,11 +85,10 @@ def related_pages():
         conn.close()
         return jsonify([])
 
-    # キーワードを含むページを検索（現在のページを除外）
     keyword_conditions = " OR ".join([f"content LIKE '%%[{kw}]%%'" for kw in keywords])
     cur.execute(f"""
         SELECT title, content FROM {TABLE_NAME}
-        WHERE token = %s AND title != %s AND ({keyword_conditions})
+        WHERE token = %s AND title != %s AND deleted_at IS NULL AND ({keyword_conditions})
         ORDER BY updated_at DESC
     """, (token, title))
     rows = cur.fetchall()
@@ -107,11 +106,47 @@ def save():
     conn = get_db()
     cur = conn.cursor()
     cur.execute(f"""
-        INSERT INTO {TABLE_NAME} (token, title, content, updated_at)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO {TABLE_NAME} (token, title, content, updated_at, deleted_at)
+        VALUES (%s, %s, %s, %s, NULL)
         ON CONFLICT (token, title)
-        DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at
+        DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at, deleted_at = NULL
     """, (token, title, content, datetime.now()))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"status": "success"})
+
+@app.route("/api/delete", methods=["POST"])
+def delete():
+    ensure_table_exists()
+    data = request.json
+    token = data["token"]
+    title = data["title"]
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"""
+        UPDATE {TABLE_NAME}
+        SET deleted_at = %s
+        WHERE token = %s AND title = %s
+    """, (datetime.now(), token, title))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"status": "success"})
+
+@app.route("/api/undelete", methods=["POST"])
+def undelete():
+    ensure_table_exists()
+    data = request.json
+    token = data["token"]
+    title = data["title"]
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"""
+        UPDATE {TABLE_NAME}
+        SET deleted_at = NULL
+        WHERE token = %s AND title = %s
+    """, (token, title))
     conn.commit()
     cur.close()
     conn.close()
