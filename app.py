@@ -103,18 +103,19 @@ def load():
     ensure_table_exists()
     token = request.args.get("token")
     title = request.args.get("title")
-
+    print(f"DEBUG: token={token}, title={title}")  # ログ出力
     conn = get_db()
     cur = conn.cursor()
     cur.execute(f"SELECT content FROM {TABLE_NAME} WHERE token = %s AND title = %s", (token, title))
     row = cur.fetchone()
     cur.close()
     conn.close()
-
     if row:
         return jsonify({"status": "success", "content": row[0]})
     else:
+        print(f"DEBUG: No record found for token={token}, title={title}")  # ログ出力
         return jsonify({"status": "error", "message": "Not found"}), 404
+
 
 
 @app.route("/archive", methods=["GET"])
