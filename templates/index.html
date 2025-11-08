@@ -7,7 +7,8 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { background: #f8f9fa; padding: 20px; }
-        #searchBox { width: 100%; max-width: 600px; margin: 0 auto 20px; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; }
+        .search-container { text-align: center; margin-bottom: 20px; }
+        #searchBox { width: 100%; max-width: 600px; margin: 0 auto; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; }
         #pageList { max-width: 600px; margin: 0 auto; }
         .page-card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
         .page-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
@@ -18,19 +19,25 @@
         #addButton { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; background: #007bff; color: white; border: none; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .back-button { color: #0366d6; text-decoration: none; margin-bottom: 16px; display: inline-block; }
         .keyword { color: #0366d6; cursor: pointer; }
+        #relatedPages { max-width: 600px; margin: 20px auto; }
+        .related-page-card { background: #f0f8ff; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <input type="text" id="searchBox" placeholder="タイトル・本文を検索...">
+    <div class="search-container">
+        <input type="text" id="searchBox" placeholder="タイトル・本文を検索...">
+    </div>
     <div id="pageList"></div>
     <div id="editor">
         <a href="#" class="back-button" id="backButton">← 一覧に戻る</a>
         <input type="text" id="editorTitle" placeholder="タイトル">
         <textarea id="editorContent" placeholder="本文を入力..."></textarea>
+        <div id="relatedPages"></div>
     </div>
     <button id="addButton">+</button>
     <script>
         const token = "{{ token }}";
+
         // ページ一覧を表示
         function renderPageList(pages) {
             const pageList = document.getElementById('pageList');
@@ -41,18 +48,45 @@
                 </div>`
             ).join('');
         }
+
+        // 関連ページを表示
+        function renderRelatedPages(pages) {
+            const relatedPages = document.getElementById('relatedPages');
+            if (pages.length > 0) {
+                relatedPages.innerHTML = '<h3>関連ページ</h3>' + pages.map(page =>
+                    `<div class="related-page-card" onclick="openEditor('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
+                        <div class="page-title">${page.title}</div>
+                    </div>`
+                ).join('');
+            } else {
+                relatedPages.innerHTML = '';
+            }
+        }
+
         // エディタを開く
         function openEditor(title, content) {
             document.getElementById('editorTitle').value = title;
             document.getElementById('editorContent').value = content;
             document.getElementById('pageList').style.display = 'none';
             document.getElementById('editor').style.display = 'block';
+            if (title) {
+                fetchRelatedPages(title);
+            }
         }
+
+        // 関連ページを取得
+        function fetchRelatedPages(title) {
+            fetch(`/api/related_pages?token=${token}&title=${encodeURIComponent(title)}`)
+                .then(res => res.json())
+                .then(renderRelatedPages);
+        }
+
         // エディタを閉じる
         function closeEditor() {
             document.getElementById('editor').style.display = 'none';
             document.getElementById('pageList').style.display = 'block';
         }
+
         // ページを保存
         function savePage() {
             const title = document.getElementById('editorTitle').value;
@@ -66,12 +100,14 @@
                 fetchPageList();
             });
         }
+
         // ページ一覧を取得
         function fetchPageList(query = '') {
             fetch(`/api/page_list?token=${token}&query=${query}`)
                 .then(res => res.json())
                 .then(renderPageList);
         }
+
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             fetchPageList();

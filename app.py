@@ -69,9 +69,27 @@ def related_pages():
     title = request.args.get("title")
     conn = get_db()
     cur = conn.cursor()
+
+    # 現在開いているページの本文中の[キーワード]を抽出
+    cur.execute(f"SELECT content FROM {TABLE_NAME} WHERE token = %s AND title = %s", (token, title))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    content = row[0]
+    keywords = re.findall(r'\[([^\]]+)\]', content)
+    if not keywords:
+        cur.close()
+        conn.close()
+        return jsonify([])
+
+    # キーワードを含むページを検索（現在のページを除外）
+    keyword_conditions = " OR ".join([f"content LIKE '%%[{kw}]%%'" for kw in keywords])
     cur.execute(f"""
         SELECT title, content FROM {TABLE_NAME}
-        WHERE token = %s AND content LIKE '%%[[]%%' AND title != %s
+        WHERE token = %s AND title != %s AND ({keyword_conditions})
         ORDER BY updated_at DESC
     """, (token, title))
     rows = cur.fetchall()
