@@ -7,16 +7,14 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { background: #f8f9fa; padding: 20px; }
-        .search-container { text-align: center; margin-bottom: 20px; }
-        #searchBox { width: 100%; max-width: 600px; margin: 0 auto; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; }
         #pageList { max-width: 600px; margin: 0 auto; }
         .page-card { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
+        .page-card.selected { background: #ff69b4; color: white; }
         .page-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
         .page-content { color: #555; font-size: 14px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         #editor { display: none; max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         #editorTitle { width: 100%; font-size: 20px; border: none; outline: none; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid #eee; }
         #editorContent { width: 100%; min-height: 300px; font-size: 16px; border: none; outline: none; resize: none; }
-        #addButton { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; background: #007bff; color: white; border: none; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .back-button { color: #0366d6; text-decoration: none; margin-bottom: 16px; display: inline-block; }
         .keyword { color: #0366d6; cursor: pointer; }
         #relatedPages { max-width: 600px; margin: 20px auto; }
@@ -26,16 +24,14 @@
         .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
         @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 80px; opacity: 1; } }
         @keyframes fadeout { from { bottom: 80px; opacity: 1; } to { bottom: 0; opacity: 0; } }
-        .new-page-button { margin-bottom: 16px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #searchModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 100; }
+        #searchModalContent { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px; }
+        #searchInput { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 16px; }
+        #searchResults { max-height: 400px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <div class="search-container">
-        <input type="text" id="searchBox" placeholder="タイトル・本文を検索...">
-    </div>
-    <div id="pageList">
-        <button class="new-page-button" id="newPageButton">新規ページ</button>
-    </div>
+    <div id="pageList"></div>
     <div id="editor">
         <a href="#" class="back-button" id="backButton">← 一覧に戻る</a>
         <input type="text" id="editorTitle" placeholder="タイトル">
@@ -43,21 +39,27 @@
         <div id="relatedPages"></div>
     </div>
     <div id="toast" class="toast"></div>
-    <button id="addButton">+</button>
+    <div id="searchModal">
+        <div id="searchModalContent">
+            <input type="text" id="searchInput" placeholder="検索..." autofocus>
+            <div id="searchResults"></div>
+        </div>
+    </div>
     <script>
         const token = "{{ token }}";
         let lastDeletedPage = null;
         let debounceTimer = null;
         let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || [];
+        let selectedIndex = 0;
 
         // ページ一覧を表示
         function renderPageList(pages, query = '') {
             const pageList = document.getElementById('pageList');
-            pageList.innerHTML = '<button class="new-page-button" id="newPageButton">新規ページ</button>' + pages.map(page => {
+            pageList.innerHTML = pages.map((page, index) => {
                 const title = highlightKeywords(page.title, query);
                 const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                 return `
-                    <div class="page-card" onclick="openEditorFromList('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
+                    <div class="page-card ${index === selectedIndex ? 'selected' : ''}" onclick="openEditorFromList('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`)">
                         <div class="page-title">${title}</div>
                         <div class="page-content">${content}</div>
                     </div>
@@ -110,7 +112,7 @@
             document.getElementById('editor').style.display = 'block';
             document.getElementById('editorTitle').focus();
             if (title) {
-                fetchRelatedPages(title, document.getElementById('searchBox').value);
+                fetchRelatedPages(title, '');
             }
         }
 
@@ -151,15 +153,14 @@
                     localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
                     renderPageList(pages, query);
                     if (pages.length > 0 && !window.location.hash) {
-                        openEditorFromList(pages[0].title, pages[0].content);
+                        document.querySelector('.page-card').classList.add('selected');
                     }
                 });
         }
 
         // キャッシュを更新してページ一覧を再取得
         function updateCacheAndFetchList() {
-            const query = document.getElementById('searchBox').value;
-            fetchPageList(query);
+            fetchPageList();
         }
 
         // ページを削除
@@ -183,19 +184,43 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
+        // 検索モーダルを開く
+        function openSearchModal() {
+            document.getElementById('searchModal').style.display = 'block';
+            document.getElementById('searchInput').focus();
+        }
+
+        // 検索モーダルを閉じる
+        function closeSearchModal() {
+            document.getElementById('searchModal').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResults').innerHTML = '';
+        }
+
+        // 検索結果を表示
+        function searchPages(query) {
+            const results = cachedPages.filter(page =>
+                page.title.includes(query) || page.content.includes(query)
+            );
+            const searchResults = document.getElementById('searchResults');
+            searchResults.innerHTML = results.map(page => {
+                const title = highlightKeywords(page.title, query);
+                const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
+                return `
+                    <div class="page-card" onclick="openEditorFromList('${page.title}', \`${page.content.replace(/`/g, '\\`')}\`); closeSearchModal();">
+                        <div class="page-title">${title}</div>
+                        <div class="page-content">${content}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
-            // ローカルストレージからキャッシュを読み込み
             if (cachedPages.length > 0) {
                 renderPageList(cachedPages);
             }
-
-            // サーバーから最新のページ一覧を取得
             fetchPageList();
-
-            document.getElementById('searchBox').addEventListener('input', (e) => fetchPageList(e.target.value));
-            document.getElementById('addButton').addEventListener('click', () => openEditor('', ''));
-            document.getElementById('newPageButton').addEventListener('click', () => openEditor('', ''));
             document.getElementById('backButton').addEventListener('click', (e) => { e.preventDefault(); closeEditor(); });
 
             // 自動保存（デバウンス）
@@ -210,9 +235,53 @@
 
             // キーボードショートカット
             document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.key === 's') { e.preventDefault(); savePage(); }
-                if (e.ctrlKey && e.key === 'n') { e.preventDefault(); openEditor('', ''); }
-                if (e.key === 'Escape') { closeEditor(); }
+                if (document.activeElement === document.getElementById('editorTitle') || document.activeElement === document.getElementById('editorContent')) {
+                    return;
+                }
+
+                if (e.key === '/') {
+                    e.preventDefault();
+                    openSearchModal();
+                } else if (e.key === 'Escape') {
+                    closeSearchModal();
+                } else if (e.key === 'j') {
+                    e.preventDefault();
+                    const cards = document.querySelectorAll('.page-card');
+                    if (cards.length > 0) {
+                        cards[selectedIndex].classList.remove('selected');
+                        selectedIndex = (selectedIndex + 1) % cards.length;
+                        cards[selectedIndex].classList.add('selected');
+                        cards[selectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                } else if (e.key === 'k') {
+                    e.preventDefault();
+                    const cards = document.querySelectorAll('.page-card');
+                    if (cards.length > 0) {
+                        cards[selectedIndex].classList.remove('selected');
+                        selectedIndex = (selectedIndex - 1 + cards.length) % cards.length;
+                        cards[selectedIndex].classList.add('selected');
+                        cards[selectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                } else if (e.key === 'o') {
+                    e.preventDefault();
+                    const cards = document.querySelectorAll('.page-card');
+                    if (cards.length > 0) {
+                        const title = cards[selectedIndex].querySelector('.page-title').textContent;
+                        const content = cachedPages.find(page => page.title === title).content;
+                        openEditorFromList(title, content);
+                    }
+                } else if (e.ctrlKey && e.key === 'n') {
+                    e.preventDefault();
+                    openEditor('', '');
+                } else if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    savePage();
+                }
+            });
+
+            // 検索入力時の処理
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchPages(e.target.value);
             });
 
             // URLハッシュからページを開く
