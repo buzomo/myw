@@ -102,8 +102,11 @@
                 span.className = 'keyword-item';
                 span.textContent = keyword;
                 span.addEventListener('click', () => {
-                    // キーワードクリック時の処理（例: 検索など）
-                    alert(`キーワード「${keyword}」がクリックされました`);
+                    // キーワードをタイトルとして設定
+                    const textarea = document.getElementById('wikiTextarea');
+                    textarea.value = keyword + '\n';
+                    // キーワードを含むタイトルを検索して表示
+                    searchTitlesByKeyword(keyword);
                 });
                 keywordList.appendChild(span);
             });
@@ -133,6 +136,24 @@
                 titleList.appendChild(div);
             });
             titleList.style.display = 'block';
+        }
+        // キーワードを含むタイトルを検索
+        function searchTitlesByKeyword(keyword) {
+            const token = getToken();
+            if (!token) return;
+            fetch(`/search_titles?token=${encodeURIComponent(token)}&keyword=${encodeURIComponent(keyword)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.titles.length > 0) {
+                        showTitleList(data.titles);
+                    } else {
+                        document.getElementById('titleList').style.display = 'none';
+                        alert('該当するタイトルは見つかりませんでした');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
         }
         // タイトルに合致するコンテンツを読み込む
         function loadContentByTitle(title) {
