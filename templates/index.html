@@ -12,8 +12,6 @@
             padding: 0;
         }
         textarea {
-            width: 100%;
-            height: 100vh;
             border: none;
             padding: 10px;
             box-sizing: border-box;
@@ -67,6 +65,19 @@
             padding: 8px 16px;
             cursor: pointer;
         }
+        @media (min-width: 768px) {
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                background-color: #f9f9f9;
+            }
+            textarea {
+                width: 80%;
+                height: 80vh;
+            }
+        }
     </style>
 </head>
 <body>
@@ -82,23 +93,57 @@
         const textarea = document.getElementById("wiki-text");
         const token = "{{ token }}";
         let timeout;
+        let lastTitle = "";
 
-        // ページロード時にURLパラメータからタイトルを取得し、本文を読み込む
+        // ページロード時の処理
         window.addEventListener("DOMContentLoaded", () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const title = urlParams.get("title");
-            if (title) {
-                fetch(`/load?token=${token}&title=${encodeURIComponent(title)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.status === "success") {
-                            textarea.value = `${title}\n${data.content}`;
-                        }
-                    });
+            fetch(`/load_last?token=${token}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        textarea.value = `${data.title}\n${data.content}`;
+                        lastTitle = data.title;
+                    } else {
+                        // ロード時に空欄の場合、タイトル一覧を表示
+                        fetch(`/get_titles?token=${token}`)
+                            .then(res => res.json())
+                            .then(titles => {
+                                const buttons = document.getElementById("keyword-buttons");
+                                buttons.innerHTML = titles.map(t => `<button onclick="loadPage('${t}')">${t}</button>`).join("");
+                            });
+                    }
+                });
+        });
+
+        textarea.addEventListener("keydown", (e) => {
+            const lines = textarea.value.split("\n");
+            const currentTitle = lines[0] || "";
+
+            // 1行目が空欄の場合は改行を無効化
+            if (lines.length === 1 && currentTitle.trim() === "" && e.key === "Enter") {
+                e.preventDefault();
+                return;
             }
         });
 
         textarea.addEventListener("input", () => {
+            const lines = textarea.value.split("\n");
+            const currentTitle = lines[0] || "";
+
+            // 1行目の内容が変わったらデータを呼び出す
+            if (currentTitle !== lastTitle) {
+                lastTitle = currentTitle;
+                if (currentTitle.trim() !== "") {
+                    fetch(`/load?token=${token}&title=${encodeURIComponent(currentTitle)}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status === "success") {
+                                textarea.value = `${currentTitle}\n${data.content}`;
+                            }
+                        });
+                }
+            }
+
             clearTimeout(timeout);
             timeout = setTimeout(saveContent, 2000);
         });
@@ -108,7 +153,7 @@
             const title = lines[0] || "";
             const content = lines.slice(1).join("\n");
 
-            if (!content.trim()) return;
+            if (!content.trim() || !title.trim()) return;
 
             fetch("/save", {
                 method: "POST",
@@ -137,6 +182,7 @@
                 .then(data => {
                     if (data.status === "success") {
                         textarea.value = `${title}\n${data.content}`;
+                        lastTitle = title;
                     }
                 });
         }
