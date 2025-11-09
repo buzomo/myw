@@ -8,27 +8,55 @@
       type="image/svg+xml">
     <title>シンプルWiki</title>
     <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg-color: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --placeholder-color: #6c757d;
+            --related-bg-color: #f8f9fa;
+            --related-hover-color: #e9ecef;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #212529;
+                --card-bg-color: #343a40;
+                --text-color: #f8f9fa;
+                --border-color: #495057;
+                --placeholder-color: #adb5bd;
+                --related-bg-color: #212529;
+                --related-hover-color: #495057;
+            }
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
             font-family: sans-serif;
         }
+
         body {
-            background: #f8f9fa;
+            background: var(--bg-color);
             padding: 20px;
+            color: var(--text-color);
         }
+
         #pageList {
             max-width: 600px;
             margin: 0 auto;
         }
+
         .editor-container {
-            background: white;
+            background: var(--card-bg-color);
             border-radius: 8px;
             padding: 16px;
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
         }
+
         .editor-title {
             width: 100%;
             font-size: 20px;
@@ -36,8 +64,15 @@
             outline: none;
             margin-bottom: 12px;
             padding: 8px 0;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--card-bg-color);
+            color: var(--text-color);
         }
+
+        .editor-title::placeholder {
+            color: var(--placeholder-color);
+        }
+
         .editor-content {
             width: 100%;
             min-height: auto;
@@ -47,12 +82,20 @@
             resize: none;
             overflow-y: hidden;
             line-height: 1.5;
+            background: var(--card-bg-color);
+            color: var(--text-color);
         }
+
+        .editor-content::placeholder {
+            color: var(--placeholder-color);
+        }
+
         .related-pages {
             margin-top: 12px;
         }
+
         .related-page-card {
-            background: #f8f9fa;
+            background: var(--related-bg-color);
             border-radius: 4px;
             padding: 8px 12px;
             margin-bottom: 6px;
@@ -60,9 +103,11 @@
             display: inline-block;
             margin-right: 6px;
             font-size: 14px;
+            border: 1px solid var(--border-color);
         }
+
         .related-page-card:hover {
-            background: #e9ecef;
+            background: var(--related-hover-color);
         }
     </style>
 </head>
