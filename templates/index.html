@@ -128,11 +128,11 @@
             const pageList = document.getElementById('pageList');
             let html = '';
             Object.entries(pages).forEach(([title, content]) => {
-                if (title.trim().length > 0 && content.trim().length > 0) {
+                if (title.trim().length > 0 && (content || "").trim().length > 0) {
                     html += `
-                        <div class="editor-container" data-title="${title}">
-                            <input type="text" class="editor-title" value="${title}" oninput="handleTitleInput(this)">
-                            <textarea class="editor-content" oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力...">${content}</textarea>
+                        <div class="editor-container" data-title="${escapeHtml(title)}">
+                            <input type="text" class="editor-title" value="${escapeHtml(title)}" oninput="handleTitleInput(this)">
+                            <textarea class="editor-content" oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力...">${escapeHtml(content || "")}</textarea>
                         </div>
                     `;
                 }
@@ -142,6 +142,17 @@
             document.querySelectorAll('.editor-content').forEach(textarea => {
                 adjustTextareaHeight(textarea);
             });
+        }
+
+        // HTMLエスケープ
+        function escapeHtml(text) {
+            if (!text) return "";
+            return text.toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
         // テキストエリアの高さを調整
@@ -170,6 +181,8 @@
             const title = editor.querySelector('.editor-title').value;
             const content = textarea.value;
 
+            extractKeywords(textarea);
+
             const key = `content_${title || 'new'}`;
             saveTimers[key] = debounce(() => {
                 savePage(title, content, editor.getAttribute('data-title'));
@@ -183,15 +196,16 @@
             const keywords = [...new Set(content.match(/\[([^\]]+)\]/g) || [])].map(k => k.slice(1, -1));
 
             keywords.forEach(keyword => {
-                const existingEditor = document.querySelector(`.editor-container[data-title="${keyword}"]`);
+                if (!keyword.trim()) return;
+                const existingEditor = document.querySelector(`.editor-container[data-title="${escapeHtml(keyword)}"]`);
                 if (existingEditor && existingEditor !== editor) {
                     // 既存のエディタをアクティブなエディタの直下に移動
                     editor.insertAdjacentElement('afterend', existingEditor);
-                } else if (!existingEditor && keyword.trim().length > 0) {
+                } else if (!existingEditor) {
                     // 新しいエディタを挿入
                     const keywordEditorHTML = `
-                        <div class="editor-container" data-title="${keyword}">
-                            <input type="text" class="editor-title" value="${keyword}" oninput="handleTitleInput(this)">
+                        <div class="editor-container" data-title="${escapeHtml(keyword)}">
+                            <input type="text" class="editor-title" value="${escapeHtml(keyword)}" oninput="handleTitleInput(this)">
                             <textarea class="editor-content" oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力..."></textarea>
                         </div>
                     `;
@@ -203,7 +217,7 @@
         // ページを保存
         function savePage(title, content, oldTitle) {
             // タイトルが空欄で本文も空欄の場合は保存しない
-            if (title.trim().length === 0 && content.trim().length === 0) {
+            if (title.trim().length === 0 && (content || "").trim().length === 0) {
                 return;
             }
 
