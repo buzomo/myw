@@ -27,10 +27,24 @@
         #searchModalContent { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px; }
         #searchInput { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 16px; }
         #searchResults { max-height: 400px; overflow-y: auto; }
+        #newPageCard {
+            background: #e9ecef !important;
+            color: #495057 !important;
+            font-style: italic;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        #newPageCard:hover {
+            background: #dee2e6 !important;
+        }
     </style>
 </head>
 <body>
-    <div id="pageList"></div>
+    <div id="pageList">
+        <div class="page-card" id="newPageCard" onclick="openEditor('', '')">
+            <div class="page-title">+ 新規ページを作成</div>
+        </div>
+    </div>
     <div id="editor">
         <a href="#" class="back-button" id="backButton">← 一覧に戻る</a>
         <input type="text" id="editorTitle" placeholder="タイトル">
@@ -54,7 +68,11 @@
         // ページ一覧を表示
         function renderPageList(pages, query = '') {
             const pageList = document.getElementById('pageList');
-            pageList.innerHTML = pages.map((page, index) => {
+            // 新規作成ボタンは残したまま、既存のページを追加
+            let html = `<div class="page-card" id="newPageCard" onclick="openEditor('', '')" style="text-align: center; cursor: pointer; background: #e9ecef;">
+                            <div class="page-title">+ 新規ページを作成</div>
+                        </div>`;
+            html += pages.map((page, index) => {
                 const title = highlightKeywords(page.title, query);
                 const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                 return `
@@ -64,6 +82,7 @@
                     </div>
                 `;
             }).join('');
+            pageList.innerHTML = html;
         }
 
         // 関連ページを表示（現在表示中のページを除外）
@@ -152,7 +171,7 @@
                     localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
                     renderPageList(pages, query);
                     if (pages.length > 0 && !window.location.hash) {
-                        document.querySelector('.page-card').classList.add('selected');
+                        document.querySelector('#pageList .page-card:nth-child(2)').classList.add('selected');
                     }
                 });
         }
@@ -227,7 +246,6 @@
             document.addEventListener('keydown', (e) => {
                 const isEditing = document.activeElement === document.getElementById('editorTitle') || document.activeElement === document.getElementById('editorContent');
                 const isSearching = document.getElementById('searchModal').style.display === 'block';
-
                 if (isEditing) {
                     return;
                 }
@@ -277,34 +295,34 @@
                 } else if (e.key === 'ArrowDown' || e.key === 'j') {
                     e.preventDefault();
                     const cards = document.querySelectorAll('#pageList .page-card');
-                    if (cards.length > 0) {
-                        cards[selectedIndex]?.classList.remove('selected');
-                        selectedIndex = (selectedIndex + 1) % cards.length;
-                        cards[selectedIndex].classList.add('selected');
-                        cards[selectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (cards.length > 1) { // 新規作成ボタンを除く
+                        cards[selectedIndex + 1]?.classList.remove('selected');
+                        selectedIndex = (selectedIndex + 1) % (cards.length - 1);
+                        cards[selectedIndex + 1].classList.add('selected');
+                        cards[selectedIndex + 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }
                 } else if (e.key === 'ArrowUp' || e.key === 'k') {
                     e.preventDefault();
                     const cards = document.querySelectorAll('#pageList .page-card');
-                    if (cards.length > 0) {
-                        cards[selectedIndex]?.classList.remove('selected');
-                        selectedIndex = (selectedIndex - 1 + cards.length) % cards.length;
-                        cards[selectedIndex].classList.add('selected');
-                        cards[selectedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (cards.length > 1) { // 新規作成ボタンを除く
+                        cards[selectedIndex + 1]?.classList.remove('selected');
+                        selectedIndex = (selectedIndex - 1 + (cards.length - 1)) % (cards.length - 1);
+                        cards[selectedIndex + 1].classList.add('selected');
+                        cards[selectedIndex + 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }
                 } else if (e.key === 'Enter' || e.key === 'o') {
                     e.preventDefault();
                     const cards = document.querySelectorAll('#pageList .page-card');
-                    if (cards.length > 0) {
-                        const title = cards[selectedIndex].querySelector('.page-title').textContent;
+                    if (cards.length > 1) { // 新規作成ボタンを除く
+                        const title = cards[selectedIndex + 1].querySelector('.page-title').textContent;
                         const content = cachedPages.find(page => page.title === title).content;
                         openEditorFromList(title, content);
                     }
                 } else if (e.key === 'x') {
                     e.preventDefault();
                     const cards = document.querySelectorAll('#pageList .page-card');
-                    if (cards.length > 0) {
-                        const title = cards[selectedIndex].querySelector('.page-title').textContent;
+                    if (cards.length > 1) { // 新規作成ボタンを除く
+                        const title = cards[selectedIndex + 1].querySelector('.page-title').textContent;
                         if (confirm(`${title}を削除しますか？`)) {
                             deletePage(title);
                         }
