@@ -155,7 +155,6 @@
             const title = document.getElementById('editorTitle').value;
             const content = document.getElementById('editorContent').value;
             if (content.trim().length === 0) {
-                alert("本文が空です。保存されません。");
                 return;
             }
             fetch('/api/save', {
