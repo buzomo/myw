@@ -121,7 +121,7 @@
     <div id="pageList">
         <div class="editor-container" data-title="">
             <input type="text" class="editor-title" placeholder="タイトル" oninput="updatePageTitle(this)">
-            <textarea class="editor-content" placeholder="本文を入力..." oninput="autoResize(this); extractKeywords(this)"></textarea>
+            <textarea class="editor-content" placeholder="本文を入力..." oninput="adjustTextareaHeight(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)"></textarea>
         </div>
     </div>
     <div id="toast" class="toast"></div>
@@ -137,16 +137,21 @@
             filteredPages.forEach(page => {
                 html += `
                     <div class="editor-container" data-title="${page.title}">
-                        <input type="text" class="editor-title" value="${page.title}" oninput="updatePageTitle(this)" placeholder="タイトル">
-                        <textarea class="editor-content" oninput="autoResize(this); extractKeywords(this)" placeholder="本文を入力...">${page.content}</textarea>
+                        <input type="text" class="editor-title" value="${page.title}" oninput="updatePageTitle(this)">
+                        <textarea class="editor-content" oninput="adjustTextareaHeight(this); extractKeywords(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力...">${page.content}</textarea>
                     </div>
                 `;
             });
             pageList.innerHTML += html;
+
+            // レンダー後に高さを調整
+            document.querySelectorAll('.editor-content').forEach(textarea => {
+                adjustTextareaHeight(textarea);
+            });
         }
 
-        // テキストエリアの高さを自動調整
-        function autoResize(textarea) {
+        // テキストエリアの高さを調整
+        function adjustTextareaHeight(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         }
@@ -175,8 +180,8 @@
                 if (!document.querySelector(`.editor-container[data-title="${keyword}"]`)) {
                     const keywordEditorHTML = `
                         <div class="editor-container keyword-editor" data-title="${keyword}">
-                            <input type="text" class="editor-title" value="${keyword}" oninput="updatePageTitle(this)" placeholder="タイトル">
-                            <textarea class="editor-content" oninput="autoResize(this); extractKeywords(this)" placeholder="本文を入力..."></textarea>
+                            <input type="text" class="editor-title" value="${keyword}" oninput="updatePageTitle(this)">
+                            <textarea class="editor-content" oninput="adjustTextareaHeight(this); extractKeywords(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力..."></textarea>
                         </div>
                     `;
                     editor.insertAdjacentHTML('afterend', keywordEditorHTML);
