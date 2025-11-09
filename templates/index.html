@@ -192,10 +192,26 @@
                     // 既存エディタのタイトルを更新
                     existingEditor.querySelector('.editor-title').value = keyword;
                     existingEditor.setAttribute('data-title', keyword);
-                } else if (!existingEditor) {
-                    // 新規エディタは作成しない
                 }
             });
+        }
+        // すべてのページ内のキーワードを更新（フロントエンド）
+        function updateKeywordInAllPagesFrontend(oldTitle, newTitle) {
+            document.querySelectorAll('.editor-content').forEach(textarea => {
+                const content = textarea.value;
+                const updatedContent = content.replace(new RegExp(`\\[${escapeRegExp(oldTitle)}\\]`, 'g'), `[${newTitle}]`);
+                if (content !== updatedContent) {
+                    textarea.value = updatedContent;
+                    adjustTextareaHeight(textarea);
+                    const editor = textarea.closest('.editor-container');
+                    const title = editor.querySelector('.editor-title').value;
+                    savePage(title, updatedContent, title);
+                }
+            });
+        }
+        // RegExp用のエスケープ
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
         // ページを保存
         function savePage(title, content, oldTitle) {
@@ -203,6 +219,18 @@
             if (title.trim().length === 0 && safeContent.trim().length === 0) {
                 return;
             }
+            // バックエンドにキーワード一括更新を依頼
+            if (oldTitle && oldTitle !== title) {
+                fetch('/api/update_keyword', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, oldTitle, newTitle: title })
+                }).then(() => {
+                    // フロントエンドのキーワードも更新
+                    updateKeywordInAllPagesFrontend(oldTitle, title);
+                });
+            }
+            // ページを保存
             fetch('/api/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

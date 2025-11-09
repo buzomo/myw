@@ -101,11 +101,11 @@ def save():
     title = data["title"]
     content = data["content"]
     old_title = data.get("old_title")
-
     conn = get_db()
     cur = conn.cursor()
-
     if old_title and old_title != title:
+        # キーワードを一括更新
+        update_keyword_in_all_pages(token, old_title, title)
         # タイトルが変更された場合、古いタイトルのレコードを更新
         cur.execute(f"""
             UPDATE {TABLE_NAME}
@@ -120,7 +120,6 @@ def save():
             ON CONFLICT (token, title)
             DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at, deleted_at = NULL
         """, (token, title, content, datetime.now()))
-
     conn.commit()
     cur.close()
     conn.close()
@@ -161,3 +160,24 @@ def undelete():
     cur.close()
     conn.close()
     return jsonify({"status": "success"})
+
+def update_keyword_in_all_pages(token, old_title, new_title):
+    """指定トークン内のすべてのページの本文中のキーワードを一括更新"""
+    conn = get_db()
+    cur = conn.cursor()
+    # 現在のトークン内のすべてのページを取得
+    cur.execute(f"SELECT title, content FROM {TABLE_NAME} WHERE token = %s AND deleted_at IS NULL", (token,))
+    pages = cur.fetchall()
+    for page_title, page_content in pages:
+        # キーワードを置換
+        updated_content = re.sub(rf'\[{re.escape(old_title)}\]', f'[{new_title}]', page_content)
+        if updated_content != page_content:
+            # 更新が必要な場合のみ更新
+            cur.execute(f"""
+                UPDATE {TABLE_NAME}
+                SET content = %s, updated_at = %s
+                WHERE token = %s AND title = %s AND deleted_at IS NULL
+            """, (updated_content, datetime.now(), token, page_title))
+    conn.commit()
+    cur.close()
+    conn.close()
