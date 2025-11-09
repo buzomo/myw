@@ -266,3 +266,267 @@
     </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📖%3C/text%3E%3C/svg%3E"
+      type="image/svg+xml">
+    <title>シンプルWiki</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg-color: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --placeholder-color: #6c757d;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #212529;
+                --card-bg-color: #343a40;
+                --text-color: #f8f9fa;
+                --border-color: #495057;
+                --placeholder-color: #adb5bd;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+        }
+
+        body {
+            background: var(--bg-color);
+            padding: 20px;
+            color: var(--text-color);
+        }
+
+        #pageList {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .editor-container {
+            background: var(--card-bg-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .editor-title {
+            width: 100%;
+            font-size: 20px;
+            border: none;
+            outline: none;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--card-bg-color);
+            color: var(--text-color);
+        }
+
+        .editor-title::placeholder {
+            color: var(--placeholder-color);
+        }
+
+        .editor-content {
+            width: 100%;
+            min-height: auto;
+            font-size: 16px;
+            border: none;
+            outline: none;
+            resize: none;
+            overflow-y: hidden;
+            line-height: 1.5;
+            background: var(--card-bg-color);
+            color: var(--text-color);
+        }
+
+        .editor-content::placeholder {
+            color: var(--placeholder-color);
+        }
+
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            right: 30px;
+            bottom: 30px;
+        }
+
+        .toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+
+        @keyframes fadein {
+            from { bottom: 0; opacity: 0; }
+            to { bottom: 30px; opacity: 1; }
+        }
+
+        @keyframes fadeout {
+            from { bottom: 30px; opacity: 1; }
+            to { bottom: 0; opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="pageList">
+        <div class="editor-container" data-title="">
+            <input type="text" class="editor-title" placeholder="タイトル" oninput="updatePageTitle(this)">
+            <textarea class="editor-content" placeholder="本文を入力..." oninput="adjustTextareaHeight(this); extractKeywords(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)"></textarea>
+        </div>
+    </div>
+    <div id="toast" class="toast"></div>
+    <script>
+        const token = "{{ token }}";
+        let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || [];
+
+        // ページ一覧を表示（本文が空のページを除外）
+        function renderPageList(pages) {
+            const pageList = document.getElementById('pageList');
+            const filteredPages = pages.filter(page => page.title.trim().length > 0 && page.content.trim().length > 0);
+            let html = '';
+            filteredPages.forEach(page => {
+                html += `
+                    <div class="editor-container" data-title="${page.title}">
+                        <input type="text" class="editor-title" value="${page.title}" oninput="updatePageTitle(this)">
+                        <textarea class="editor-content" oninput="adjustTextareaHeight(this); extractKeywords(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力...">${page.content}</textarea>
+                    </div>
+                `;
+            });
+            pageList.innerHTML += html;
+
+            // レンダー後に高さを調整
+            document.querySelectorAll('.editor-content').forEach(textarea => {
+                adjustTextareaHeight(textarea);
+            });
+        }
+
+        // テキストエリアの高さを調整
+        function adjustTextareaHeight(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+
+        // タイトルを更新
+        function updatePageTitle(input) {
+            const editor = input.closest('.editor-container');
+            const title = input.value;
+            const content = editor.querySelector('.editor-content').value;
+            editor.setAttribute('data-title', title);
+            savePage(title, content);
+        }
+
+        // キーワードを抽出して関連エディタを挿入
+        function extractKeywords(textarea) {
+            const editor = textarea.closest('.editor-container');
+            const content = textarea.value;
+            const keywords = [...new Set(content.match(/\[([^\]]+)\]/g) || [])].map(k => k.slice(1, -1));
+
+            keywords.forEach(keyword => {
+                // 既に同じタイトルのエディタが存在しない場合のみ挿入
+                if (!document.querySelector(`.editor-container[data-title="${keyword}"]`)) {
+                    const keywordEditorHTML = `
+                        <div class="editor-container" data-title="${keyword}">
+                            <input type="text" class="editor-title" value="${keyword}" oninput="updatePageTitle(this)">
+                            <textarea class="editor-content" oninput="adjustTextareaHeight(this); extractKeywords(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力..."></textarea>
+                        </div>
+                    `;
+                    editor.insertAdjacentHTML('afterend', keywordEditorHTML);
+                }
+            });
+        }
+
+        // ページを保存
+        function savePage(title, content) {
+            // タイトルが空欄で本文が1文字以上の場合は保存しない
+            if (title.trim().length === 0 && content.trim().length > 0) {
+                return;
+            }
+
+            // タイトルが空欄で本文も空欄の場合は保存しない
+            if (title.trim().length === 0 && content.trim().length === 0) {
+                return;
+            }
+
+            fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, title, content })
+            }).then(() => {
+                updateCacheAndFetchList();
+            });
+        }
+
+        // ページを削除
+        function deletePage(editor) {
+            const title = editor.getAttribute('data-title');
+            if (!title) return;
+
+            fetch('/api/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, title })
+            }).then(() => {
+                editor.remove();
+                showToast(`${title} を削除しました`);
+                updateCacheAndFetchList();
+            });
+        }
+
+        // トーストを表示
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show';
+            setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
+        }
+
+        // ページ一覧を取得
+        function fetchPageList() {
+            fetch(`/api/page_list?token=${token}`)
+                .then(res => res.json())
+                .then(pages => {
+                    cachedPages = pages;
+                    localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
+                    renderPageList(pages);
+                });
+        }
+
+        // キャッシュを更新してページ一覧を再取得
+        function updateCacheAndFetchList() {
+            fetchPageList();
+        }
+
+        // 右クリックでページ削除
+        document.addEventListener('contextmenu', (e) => {
+            const editor = e.target.closest('.editor-container');
+            if (editor && !e.target.closest('.editor-title') && !e.target.closest('.editor-content')) {
+                e.preventDefault();
+                deletePage(editor);
+            }
+        });
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchPageList();
+        });
+    </script>
+</body>
+</html>
