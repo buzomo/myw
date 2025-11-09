@@ -14,8 +14,6 @@
             --text-color: #212529;
             --border-color: #dee2e6;
             --placeholder-color: #6c757d;
-            --related-bg-color: #f8f9fa;
-            --related-hover-color: #e9ecef;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -25,8 +23,6 @@
                 --text-color: #f8f9fa;
                 --border-color: #495057;
                 --placeholder-color: #adb5bd;
-                --related-bg-color: #212529;
-                --related-hover-color: #495057;
             }
         }
 
@@ -55,6 +51,7 @@
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             border: 1px solid var(--border-color);
+            position: relative;
         }
 
         .editor-title {
@@ -90,24 +87,33 @@
             color: var(--placeholder-color);
         }
 
-        .related-pages {
-            margin-top: 12px;
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            right: 30px;
+            bottom: 30px;
         }
 
-        .related-page-card {
-            background: var(--related-bg-color);
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin-bottom: 6px;
-            cursor: pointer;
-            display: inline-block;
-            margin-right: 6px;
-            font-size: 14px;
-            border: 1px solid var(--border-color);
+        .toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
         }
 
-        .related-page-card:hover {
-            background: var(--related-hover-color);
+        @keyframes fadein {
+            from { bottom: 0; opacity: 0; }
+            to { bottom: 30px; opacity: 1; }
+        }
+
+        @keyframes fadeout {
+            from { bottom: 30px; opacity: 1; }
+            to { bottom: 0; opacity: 0; }
         }
     </style>
 </head>
@@ -116,9 +122,9 @@
         <div class="editor-container" data-title="">
             <input type="text" class="editor-title" placeholder="タイトル" oninput="updatePageTitle(this)">
             <textarea class="editor-content" placeholder="本文を入力..." oninput="autoResize(this); extractKeywords(this)"></textarea>
-            <div class="related-pages"></div>
         </div>
     </div>
+    <div id="toast" class="toast"></div>
     <script>
         const token = "{{ token }}";
         let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || [];
@@ -126,14 +132,13 @@
         // ページ一覧を表示（本文が空のページを除外）
         function renderPageList(pages) {
             const pageList = document.getElementById('pageList');
-            const filteredPages = pages.filter(page => page.content.trim().length > 0);
+            const filteredPages = pages.filter(page => page.title.trim().length > 0 && page.content.trim().length > 0);
             let html = '';
             filteredPages.forEach(page => {
                 html += `
                     <div class="editor-container" data-title="${page.title}">
                         <input type="text" class="editor-title" value="${page.title}" oninput="updatePageTitle(this)" placeholder="タイトル">
                         <textarea class="editor-content" oninput="autoResize(this); extractKeywords(this)" placeholder="本文を入力...">${page.content}</textarea>
-                        <div class="related-pages" id="relatedPages_${page.title.replace(/\s+/g, '_')}"></div>
                     </div>
                 `;
             });
@@ -155,64 +160,42 @@
             savePage(title, content);
         }
 
-        // キーワードを抽出して関連ページを表示
+        // キーワードを抽出して関連エディタを挿入
         function extractKeywords(textarea) {
             const editor = textarea.closest('.editor-container');
-            const title = editor.getAttribute('data-title');
             const content = textarea.value;
             const keywords = [...new Set(content.match(/\[([^\]]+)\]/g) || [])].map(k => k.slice(1, -1));
-            const relatedPagesContainer = editor.querySelector('.related-pages');
-            if (keywords.length > 0) {
-                let html = '';
-                keywords.forEach(keyword => {
-                    const existingPage = cachedPages.find(page => page.title === keyword);
-                    if (existingPage) {
-                        html += `<div class="related-page-card" onclick="focusPage('${keyword}')">${keyword}</div>`;
-                    } else {
-                        html += `<div class="related-page-card" onclick="createEditorWithTitle('${keyword}')">${keyword} (新規)</div>`;
-                    }
-                });
-                relatedPagesContainer.innerHTML = html;
-            } else {
-                relatedPagesContainer.innerHTML = '';
-            }
-        }
 
-        // 指定したタイトルのエディタにフォーカス
-        function focusPage(title) {
-            const editors = document.querySelectorAll('.editor-container');
-            for (const editor of editors) {
-                if (editor.getAttribute('data-title') === title) {
-                    editor.querySelector('.editor-content').focus();
-                    return;
+            // 既存のキーワードエディタを削除
+            const existingKeywordEditors = document.querySelectorAll('.keyword-editor');
+            existingKeywordEditors.forEach(el => el.remove());
+
+            // 新しいキーワードエディタを挿入
+            keywords.forEach(keyword => {
+                if (!document.querySelector(`.editor-container[data-title="${keyword}"]`)) {
+                    const keywordEditorHTML = `
+                        <div class="editor-container keyword-editor" data-title="${keyword}">
+                            <input type="text" class="editor-title" value="${keyword}" oninput="updatePageTitle(this)" placeholder="タイトル">
+                            <textarea class="editor-content" oninput="autoResize(this); extractKeywords(this)" placeholder="本文を入力..."></textarea>
+                        </div>
+                    `;
+                    editor.insertAdjacentHTML('afterend', keywordEditorHTML);
                 }
-            }
-            // 存在しない場合は新規エディタを作成
-            createEditorWithTitle(title);
-        }
-
-        // タイトルを指定して新規エディタを作成
-        function createEditorWithTitle(title) {
-            const pageList = document.getElementById('pageList');
-            const existingPage = cachedPages.find(page => page.title === title);
-            const content = existingPage ? existingPage.content : '';
-            const newEditorHTML = `
-                <div class="editor-container" data-title="${title}">
-                    <input type="text" class="editor-title" value="${title}" oninput="updatePageTitle(this)" placeholder="タイトル">
-                    <textarea class="editor-content" oninput="autoResize(this); extractKeywords(this)" placeholder="本文を入力...">${content}</textarea>
-                    <div class="related-pages" id="relatedPages_${title.replace(/\s+/g, '_')}"></div>
-                </div>
-            `;
-            pageList.insertAdjacentHTML('beforeend', newEditorHTML);
-            const newEditor = pageList.lastElementChild;
-            newEditor.querySelector('.editor-content').focus();
+            });
         }
 
         // ページを保存
         function savePage(title, content) {
-            if (content.trim().length === 0 && title.trim().length === 0) {
+            // タイトルが空欄で本文が1文字以上の場合は保存しない
+            if (title.trim().length === 0 && content.trim().length > 0) {
                 return;
             }
+
+            // タイトルが空欄で本文も空欄の場合は保存しない
+            if (title.trim().length === 0 && content.trim().length === 0) {
+                return;
+            }
+
             fetch('/api/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -220,6 +203,30 @@
             }).then(() => {
                 updateCacheAndFetchList();
             });
+        }
+
+        // ページを削除
+        function deletePage(editor) {
+            const title = editor.getAttribute('data-title');
+            if (!title) return;
+
+            fetch('/api/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, title })
+            }).then(() => {
+                editor.remove();
+                showToast(`${title} を削除しました`);
+                updateCacheAndFetchList();
+            });
+        }
+
+        // トーストを表示
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show';
+            setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
         }
 
         // ページ一覧を取得
@@ -237,6 +244,15 @@
         function updateCacheAndFetchList() {
             fetchPageList();
         }
+
+        // 右クリックでページ削除
+        document.addEventListener('contextmenu', (e) => {
+            const editor = e.target.closest('.editor-container');
+            if (editor && !e.target.closest('.editor-title') && !e.target.closest('.editor-content')) {
+                e.preventDefault();
+                deletePage(editor);
+            }
+        });
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
