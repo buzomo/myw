@@ -116,13 +116,11 @@
         const token = "{{ token }}";
         let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || {};
         let saveTimers = {};
-
         // デバウンス関数
         function debounce(func, key, delay) {
             clearTimeout(saveTimers[key]);
             return setTimeout(func, delay);
         }
-
         // ページ一覧を表示
         function renderPageList(pages) {
             const pageList = document.getElementById('pageList');
@@ -144,7 +142,6 @@
                 adjustTextareaHeight(textarea);
             });
         }
-
         // HTMLエスケープ
         function escapeHtml(text) {
             if (text === null || text === undefined) return "";
@@ -155,13 +152,11 @@
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
-
         // テキストエリアの高さを調整
         function adjustTextareaHeight(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         }
-
         // タイトル入力ハンドラ
         function handleTitleInput(input) {
             const editor = input.closest('.editor-container');
@@ -169,57 +164,45 @@
             const newTitle = input.value;
             const content = editor.querySelector('.editor-content').value;
             editor.setAttribute('data-title', newTitle);
-
             const key = `title_${oldTitle || 'new'}`;
             saveTimers[key] = debounce(() => {
                 savePage(newTitle, content, oldTitle);
             }, key, 1000);
         }
-
         // 本文入力ハンドラ
         function handleContentInput(textarea) {
             const editor = textarea.closest('.editor-container');
             const title = editor.querySelector('.editor-title').value;
             const content = textarea.value;
-
             extractKeywords(textarea);
-
             const key = `content_${title || 'new'}`;
             saveTimers[key] = debounce(() => {
                 savePage(title, content, editor.getAttribute('data-title'));
             }, key, 1000);
         }
-
-        // キーワードを抽出して関連エディタを移動または挿入
+        // キーワードを抽出して関連エディタのタイトルを更新
         function extractKeywords(textarea) {
             const editor = textarea.closest('.editor-container');
             const content = textarea.value;
             const keywords = [...new Set(content.match(/\[([^\]]+)\]/g) || [])].map(k => k.slice(1, -1));
-
             keywords.forEach(keyword => {
                 if (!keyword.trim()) return;
                 const existingEditor = document.querySelector(`.editor-container[data-title="${escapeHtml(keyword)}"]`);
                 if (existingEditor && existingEditor !== editor) {
-                    editor.insertAdjacentElement('afterend', existingEditor);
+                    // 既存エディタのタイトルを更新
+                    existingEditor.querySelector('.editor-title').value = keyword;
+                    existingEditor.setAttribute('data-title', keyword);
                 } else if (!existingEditor) {
-                    const keywordEditorHTML = `
-                        <div class="editor-container" data-title="${escapeHtml(keyword)}">
-                            <input type="text" class="editor-title" value="${escapeHtml(keyword)}" oninput="handleTitleInput(this)">
-                            <textarea class="editor-content" oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力..."></textarea>
-                        </div>
-                    `;
-                    editor.insertAdjacentHTML('afterend', keywordEditorHTML);
+                    // 新規エディタは作成しない
                 }
             });
         }
-
         // ページを保存
         function savePage(title, content, oldTitle) {
             const safeContent = String(content || "");
             if (title.trim().length === 0 && safeContent.trim().length === 0) {
                 return;
             }
-
             fetch('/api/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -232,7 +215,6 @@
                 localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
             });
         }
-
         // ページを削除
         function deletePage(editor) {
             const title = editor.getAttribute('data-title');
@@ -248,7 +230,6 @@
                 localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
             });
         }
-
         // トーストを表示
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -256,7 +237,6 @@
             toast.className = 'toast show';
             setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
         }
-
         // ページ一覧を取得
         function fetchPageList() {
             fetch(`/api/page_list?token=${token}`)
@@ -269,7 +249,6 @@
                     renderPageList(pages);
                 });
         }
-
         // 右クリックでページ削除
         document.addEventListener('contextmenu', (e) => {
             const editor = e.target.closest('.editor-container');
@@ -278,7 +257,6 @@
                 deletePage(editor);
             }
         });
-
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             fetchPageList();
