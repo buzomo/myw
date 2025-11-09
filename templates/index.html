@@ -65,14 +65,15 @@
         let selectedIndex = 0;
         let searchSelectedIndex = 0;
 
-        // ページ一覧を表示
+        // ページ一覧を表示（本文が空のページを除外）
         function renderPageList(pages, query = '') {
             const pageList = document.getElementById('pageList');
-            // 新規作成ボタンは残したまま、既存のページを追加
+            // 本文が空でないページのみフィルタリング
+            const filteredPages = pages.filter(page => page.content.trim().length > 0);
             let html = `<div class="page-card" id="newPageCard" onclick="openEditor('', '')" style="text-align: center; cursor: pointer; background: #e9ecef;">
                             <div class="page-title">+ 新規ページを作成</div>
                         </div>`;
-            html += pages.map((page, index) => {
+            html += filteredPages.map((page, index) => {
                 const title = highlightKeywords(page.title, query);
                 const content = highlightKeywords(page.content, query).replace(/\[([^\]]+)\]/g, '$1');
                 return `
@@ -85,10 +86,10 @@
             pageList.innerHTML = html;
         }
 
-        // 関連ページを表示（現在表示中のページを除外）
+        // 関連ページを表示（現在表示中のページを除外、本文が空のページを除外）
         function renderRelatedPages(pages, currentTitle, query = '') {
             const relatedPages = document.getElementById('relatedPages');
-            const filteredPages = pages.filter(page => page.title !== currentTitle);
+            const filteredPages = pages.filter(page => page.title !== currentTitle && page.content.trim().length > 0);
             if (filteredPages.length > 0) {
                 relatedPages.innerHTML = filteredPages.map(page => {
                     const title = highlightKeywords(page.title, query);
@@ -149,10 +150,14 @@
             history.pushState(null, null, '#');
         }
 
-        // ページを保存
+        // ページを保存（本文が空の場合は保存しない）
         function savePage() {
             const title = document.getElementById('editorTitle').value;
             const content = document.getElementById('editorContent').value;
+            if (content.trim().length === 0) {
+                alert("本文が空です。保存されません。");
+                return;
+            }
             fetch('/api/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -170,7 +175,7 @@
                     cachedPages = pages;
                     localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
                     renderPageList(pages, query);
-                    if (pages.length > 0 && !window.location.hash) {
+                    if (pages.filter(page => page.content.trim().length > 0).length > 0 && !window.location.hash) {
                         document.querySelector('#pageList .page-card:nth-child(2)').classList.add('selected');
                     }
                 });
@@ -209,7 +214,7 @@
         // 検索結果を表示
         function searchPages(query) {
             const results = cachedPages.filter(page =>
-                page.title.includes(query) || page.content.includes(query)
+                (page.title.includes(query) || page.content.includes(query)) && page.content.trim().length > 0
             );
             const searchResults = document.getElementById('searchResults');
             searchResults.innerHTML = results.map((page, index) => {
