@@ -128,11 +128,12 @@
             const pageList = document.getElementById('pageList');
             let html = '';
             Object.entries(pages).forEach(([title, content]) => {
-                if (title.trim().length > 0 && (content || "").trim().length > 0) {
+                const safeContent = String(content || "");
+                if (title.trim().length > 0 && safeContent.trim().length > 0) {
                     html += `
                         <div class="editor-container" data-title="${escapeHtml(title)}">
                             <input type="text" class="editor-title" value="${escapeHtml(title)}" oninput="handleTitleInput(this)">
-                            <textarea class="editor-content" oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力...">${escapeHtml(content || "")}</textarea>
+                            <textarea class="editor-content" oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)" placeholder="本文を入力...">${escapeHtml(safeContent)}</textarea>
                         </div>
                     `;
                 }
@@ -146,8 +147,8 @@
 
         // HTMLエスケープ
         function escapeHtml(text) {
-            if (!text) return "";
-            return text.toString()
+            if (text === null || text === undefined) return "";
+            return String(text)
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
@@ -216,8 +217,9 @@
 
         // ページを保存
         function savePage(title, content, oldTitle) {
+            const safeContent = String(content || "");
             // タイトルが空欄で本文も空欄の場合は保存しない
-            if (title.trim().length === 0 && (content || "").trim().length === 0) {
+            if (title.trim().length === 0 && safeContent.trim().length === 0) {
                 return;
             }
 
