@@ -70,21 +70,18 @@ def related_pages():
     title = request.args.get("title")
     conn = get_db()
     cur = conn.cursor()
-
     cur.execute(f"SELECT content FROM {TABLE_NAME} WHERE token = %s AND title = %s AND deleted_at IS NULL", (token, title))
     row = cur.fetchone()
     if not row:
         cur.close()
         conn.close()
         return jsonify([])
-
     content = row[0]
     keywords = re.findall(r'\[([^\]]+)\]', content)
     if not keywords:
         cur.close()
         conn.close()
         return jsonify([])
-
     keyword_conditions = " OR ".join([f"content LIKE '%%[{kw}]%%'" for kw in keywords])
     cur.execute(f"""
         SELECT title, content FROM {TABLE_NAME}
@@ -103,14 +100,27 @@ def save():
     token = data["token"]
     title = data["title"]
     content = data["content"]
+    old_title = data.get("old_title")
+
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(f"""
-        INSERT INTO {TABLE_NAME} (token, title, content, updated_at, deleted_at)
-        VALUES (%s, %s, %s, %s, NULL)
-        ON CONFLICT (token, title)
-        DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at, deleted_at = NULL
-    """, (token, title, content, datetime.now()))
+
+    if old_title and old_title != title:
+        # タイトルが変更された場合、古いタイトルのレコードを更新
+        cur.execute(f"""
+            UPDATE {TABLE_NAME}
+            SET title = %s, content = %s, updated_at = %s
+            WHERE token = %s AND title = %s AND deleted_at IS NULL
+        """, (title, content, datetime.now(), token, old_title))
+    else:
+        # 新規またはタイトル変更なしの場合
+        cur.execute(f"""
+            INSERT INTO {TABLE_NAME} (token, title, content, updated_at, deleted_at)
+            VALUES (%s, %s, %s, %s, NULL)
+            ON CONFLICT (token, title)
+            DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at, deleted_at = NULL
+        """, (token, title, content, datetime.now()))
+
     conn.commit()
     cur.close()
     conn.close()
