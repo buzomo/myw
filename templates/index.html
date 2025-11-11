@@ -172,6 +172,23 @@
             width: 200px;
             height: 200px;
         }
+
+        .export-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .export-button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 
@@ -192,6 +209,7 @@
                 <h3>引き継ぎURL</h3>
                 <a id="shareUrl" target="_blank"></a>
                 <div id="qrcode"></div>
+                <button class="export-button" onclick="exportData()">データをエクスポート</button>
             </div>
         </div>
     </div>
@@ -201,11 +219,13 @@
         let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || {};
         let saveTimers = {};
         let deletedPages = [];
+
         // デバウンス関数
         function debounce(func, key, delay) {
             clearTimeout(saveTimers[key]);
             return setTimeout(func, delay);
         }
+
         // ページ一覧を表示
         function renderPageList(pages) {
             const pageList = document.getElementById('pageList');
@@ -226,6 +246,7 @@
                 adjustTextareaHeight(textarea);
             });
         }
+
         // HTMLエスケープ
         function escapeHtml(text) {
             if (text === null || text === undefined) return "";
@@ -236,11 +257,25 @@
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
+
         // テキストエリアの高さを調整
         function adjustTextareaHeight(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         }
+
+        // 新しい空のエディタを追加
+        function addNewEditorAfter(editor) {
+            const newEditor = document.createElement('div');
+            newEditor.className = 'editor-container';
+            newEditor.setAttribute('data-title', '');
+            newEditor.innerHTML = `
+                <input type="text" class="editor-title" placeholder="タイトル" oninput="handleTitleInput(this)">
+                <textarea class="editor-content" placeholder="本文を入力..." oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)"></textarea>
+            `;
+            editor.after(newEditor);
+        }
+
         // タイトル入力ハンドラ
         function handleTitleInput(input) {
             const editor = input.closest('.editor-container');
@@ -248,22 +283,42 @@
             const newTitle = input.value;
             const content = editor.querySelector('.editor-content').value;
             editor.setAttribute('data-title', newTitle);
+
+            // 1文字以上入力されたら新しいエディタを追加
+            if (newTitle.trim().length > 0 || content.trim().length > 0) {
+                const nextEditor = editor.nextElementSibling;
+                if (!nextEditor || !nextEditor.classList.contains('editor-container')) {
+                    addNewEditorAfter(editor);
+                }
+            }
+
             const key = `title_${oldTitle || 'new'}`;
             saveTimers[key] = debounce(() => {
                 savePage(newTitle, content, oldTitle);
             }, key, 1000);
         }
+
         // 本文入力ハンドラ
         function handleContentInput(textarea) {
             const editor = textarea.closest('.editor-container');
             const title = editor.querySelector('.editor-title').value;
             const content = textarea.value;
+
+            // 1文字以上入力されたら新しいエディタを追加
+            if (title.trim().length > 0 || content.trim().length > 0) {
+                const nextEditor = editor.nextElementSibling;
+                if (!nextEditor || !nextEditor.classList.contains('editor-container')) {
+                    addNewEditorAfter(editor);
+                }
+            }
+
             extractKeywords(textarea);
             const key = `content_${title || 'new'}`;
             saveTimers[key] = debounce(() => {
                 savePage(title, content, editor.getAttribute('data-title'));
             }, key, 1000);
         }
+
         // キーワードを抽出して関連エディタのタイトルを更新
         function extractKeywords(textarea) {
             const editor = textarea.closest('.editor-container');
@@ -278,6 +333,7 @@
                 }
             });
         }
+
         // すべてのページ内のキーワードを更新（フロントエンド）
         function updateKeywordInAllPagesFrontend(oldTitle, newTitle) {
             document.querySelectorAll('.editor-content').forEach(textarea => {
@@ -292,10 +348,12 @@
                 }
             });
         }
+
         // RegExp用のエスケープ
         function escapeRegExp(string) {
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
+
         // ページを保存
         function savePage(title, content, oldTitle) {
             const safeContent = String(content || "");
@@ -323,6 +381,7 @@
                 localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
             });
         }
+
         // ページを削除
         function deletePage(editor) {
             const title = editor.getAttribute('data-title');
@@ -342,6 +401,7 @@
                 localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
             });
         }
+
         // トーストを表示
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -349,6 +409,7 @@
             toast.className = 'toast show';
             setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
         }
+
         // 削除を元に戻す
         function undoDelete() {
             if (deletedPages.length === 0) return;
@@ -366,6 +427,32 @@
             cachedPages[title] = content;
             localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
         }
+
+        // データをエクスポート
+        function exportData() {
+            const data = [];
+            document.querySelectorAll('.editor-container').forEach(editor => {
+                const title = editor.querySelector('.editor-title').value;
+                const content = editor.querySelector('.editor-content').value;
+                if (title.trim().length > 0 || content.trim().length > 0) {
+                    data.push({
+                        title: title,
+                        content: content
+                    });
+                }
+            });
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'wiki_data_export.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
         // ダブルクリックでページ削除
         document.addEventListener('dblclick', (e) => {
             const editor = e.target.closest('.editor-container');
@@ -374,16 +461,19 @@
                 deletePage(editor);
             }
         });
+
         // トーストをクリックで削除を元に戻す
         document.getElementById('toast').addEventListener('click', () => {
             undoDelete();
         });
+
         // Ctrl+Z で削除を元に戻す
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'z') {
                 undoDelete();
             }
         });
+
         // 右クリックでモーダル表示
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -401,10 +491,12 @@
             });
             modal.style.display = 'block';
         });
+
         // モーダルを閉じる
         document.querySelector('.close').addEventListener('click', () => {
             document.getElementById('contextModal').style.display = 'none';
         });
+
         // モーダル外をクリックで閉じる
         window.addEventListener('click', (e) => {
             const modal = document.getElementById('contextModal');
@@ -412,6 +504,7 @@
                 modal.style.display = 'none';
             }
         });
+
         // ページ一覧を取得
         function fetchPageList() {
             fetch(`/api/page_list?token=${token}`)
@@ -424,6 +517,7 @@
                     renderPageList(pages);
                 });
         }
+
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             fetchPageList();
