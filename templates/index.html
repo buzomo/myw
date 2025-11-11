@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📖%3C/text%3E%3C/svg%3E"
-      type="image/svg+xml">
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📖%3C/text%3E%3C/svg%3E"
+        type="image/svg+xml">
     <title>シンプルWiki</title>
     <style>
         :root {
@@ -15,6 +16,7 @@
             --border-color: #dee2e6;
             --placeholder-color: #6c757d;
         }
+
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg-color: #212529;
@@ -24,21 +26,25 @@
                 --placeholder-color: #adb5bd;
             }
         }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
             font-family: sans-serif;
         }
+
         body {
             background: var(--bg-color);
             padding: 20px;
             color: var(--text-color);
         }
+
         #pageList {
             max-width: 600px;
             margin: 0 auto;
         }
+
         .editor-container {
             background: var(--card-bg-color);
             border-radius: 8px;
@@ -48,6 +54,7 @@
             border: 1px solid var(--border-color);
             position: relative;
         }
+
         .editor-title {
             width: 100%;
             font-size: 20px;
@@ -59,9 +66,11 @@
             background: var(--card-bg-color);
             color: var(--text-color);
         }
+
         .editor-title::placeholder {
             color: var(--placeholder-color);
         }
+
         .editor-content {
             width: 100%;
             min-height: auto;
@@ -74,9 +83,11 @@
             background: var(--card-bg-color);
             color: var(--text-color);
         }
+
         .editor-content::placeholder {
             color: var(--placeholder-color);
         }
+
         .toast {
             visibility: hidden;
             min-width: 250px;
@@ -91,18 +102,36 @@
             bottom: 30px;
             cursor: pointer;
         }
+
         .toast.show {
             visibility: visible;
             animation: fadein 0.5s, fadeout 0.5s 2.5s;
         }
+
         @keyframes fadein {
-            from { bottom: 0; opacity: 0; }
-            to { bottom: 30px; opacity: 1; }
+            from {
+                bottom: 0;
+                opacity: 0;
+            }
+
+            to {
+                bottom: 30px;
+                opacity: 1;
+            }
         }
+
         @keyframes fadeout {
-            from { bottom: 30px; opacity: 1; }
-            to { bottom: 0; opacity: 0; }
+            from {
+                bottom: 30px;
+                opacity: 1;
+            }
+
+            to {
+                bottom: 0;
+                opacity: 0;
+            }
         }
+
         .modal {
             display: none;
             position: fixed;
@@ -113,6 +142,7 @@
             height: 100%;
             background-color: rgba(0, 0, 0, 0.5);
         }
+
         .modal-content {
             background-color: var(--card-bg-color);
             margin: 15% auto;
@@ -123,6 +153,7 @@
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
+
         .close {
             color: var(--text-color);
             float: right;
@@ -130,9 +161,11 @@
             font-weight: bold;
             cursor: pointer;
         }
+
         .close:hover {
             color: #000;
         }
+
         #qrcode img {
             display: block;
             margin: 0 auto;
@@ -141,11 +174,14 @@
         }
     </style>
 </head>
+
 <body>
     <div id="pageList">
         <div class="editor-container" data-title="">
             <input type="text" class="editor-title" placeholder="タイトル" oninput="handleTitleInput(this)">
-            <textarea class="editor-content" placeholder="本文を入力..." oninput="handleContentInput(this)" onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)" onchange="adjustTextareaHeight(this)"></textarea>
+            <textarea class="editor-content" placeholder="本文を入力..." oninput="handleContentInput(this)"
+                onkeydown="adjustTextareaHeight(this)" onkeyup="adjustTextareaHeight(this)"
+                onchange="adjustTextareaHeight(this)"></textarea>
         </div>
     </div>
     <div id="toast" class="toast"></div>
@@ -165,13 +201,11 @@
         let cachedPages = JSON.parse(localStorage.getItem('cachedPages')) || {};
         let saveTimers = {};
         let deletedPages = [];
-
         // デバウンス関数
         function debounce(func, key, delay) {
             clearTimeout(saveTimers[key]);
             return setTimeout(func, delay);
         }
-
         // ページ一覧を表示
         function renderPageList(pages) {
             const pageList = document.getElementById('pageList');
@@ -192,7 +226,6 @@
                 adjustTextareaHeight(textarea);
             });
         }
-
         // HTMLエスケープ
         function escapeHtml(text) {
             if (text === null || text === undefined) return "";
@@ -203,13 +236,11 @@
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
-
         // テキストエリアの高さを調整
         function adjustTextareaHeight(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         }
-
         // タイトル入力ハンドラ
         function handleTitleInput(input) {
             const editor = input.closest('.editor-container');
@@ -222,7 +253,6 @@
                 savePage(newTitle, content, oldTitle);
             }, key, 1000);
         }
-
         // 本文入力ハンドラ
         function handleContentInput(textarea) {
             const editor = textarea.closest('.editor-container');
@@ -234,7 +264,6 @@
                 savePage(title, content, editor.getAttribute('data-title'));
             }, key, 1000);
         }
-
         // キーワードを抽出して関連エディタのタイトルを更新
         function extractKeywords(textarea) {
             const editor = textarea.closest('.editor-container');
@@ -249,7 +278,6 @@
                 }
             });
         }
-
         // すべてのページ内のキーワードを更新（フロントエンド）
         function updateKeywordInAllPagesFrontend(oldTitle, newTitle) {
             document.querySelectorAll('.editor-content').forEach(textarea => {
@@ -264,12 +292,10 @@
                 }
             });
         }
-
         // RegExp用のエスケープ
         function escapeRegExp(string) {
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
-
         // ページを保存
         function savePage(title, content, oldTitle) {
             const safeContent = String(content || "");
@@ -297,7 +323,6 @@
                 localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
             });
         }
-
         // ページを削除
         function deletePage(editor) {
             const title = editor.getAttribute('data-title');
@@ -306,10 +331,17 @@
             deletedPages.push({ title, content });
             editor.remove();
             showToast(`${title} を削除しました (クリックで元に戻す)`);
-            delete cachedPages[title];
-            localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
-        }
 
+            // サーバーに削除リクエストを送信
+            fetch('/api/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, title })
+            }).then(() => {
+                delete cachedPages[title];
+                localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
+            });
+        }
         // トーストを表示
         function showToast(message) {
             const toast = document.getElementById('toast');
@@ -317,7 +349,6 @@
             toast.className = 'toast show';
             setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
         }
-
         // 削除を元に戻す
         function undoDelete() {
             if (deletedPages.length === 0) return;
@@ -335,7 +366,6 @@
             cachedPages[title] = content;
             localStorage.setItem('cachedPages', JSON.stringify(cachedPages));
         }
-
         // ダブルクリックでページ削除
         document.addEventListener('dblclick', (e) => {
             const editor = e.target.closest('.editor-container');
@@ -344,19 +374,16 @@
                 deletePage(editor);
             }
         });
-
         // トーストをクリックで削除を元に戻す
         document.getElementById('toast').addEventListener('click', () => {
             undoDelete();
         });
-
         // Ctrl+Z で削除を元に戻す
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'z') {
                 undoDelete();
             }
         });
-
         // 右クリックでモーダル表示
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -364,25 +391,20 @@
             const shareUrl = document.getElementById('shareUrl');
             const qrcodeDiv = document.getElementById('qrcode');
             qrcodeDiv.innerHTML = '';
-
             const url = `https://idy.vercel.app/q/${encodeURIComponent(token)}`;
             shareUrl.href = url;
             shareUrl.textContent = url;
-
             new QRCode(qrcodeDiv, {
                 text: url,
                 width: 200,
                 height: 200
             });
-
             modal.style.display = 'block';
         });
-
         // モーダルを閉じる
         document.querySelector('.close').addEventListener('click', () => {
             document.getElementById('contextModal').style.display = 'none';
         });
-
         // モーダル外をクリックで閉じる
         window.addEventListener('click', (e) => {
             const modal = document.getElementById('contextModal');
@@ -390,7 +412,6 @@
                 modal.style.display = 'none';
             }
         });
-
         // ページ一覧を取得
         function fetchPageList() {
             fetch(`/api/page_list?token=${token}`)
@@ -403,11 +424,11 @@
                     renderPageList(pages);
                 });
         }
-
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             fetchPageList();
         });
     </script>
 </body>
+
 </html>
